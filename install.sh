@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="XcodeMCPProxy.app"
+APP_NAME="Xcode MCP Tap.app"
 INSTALL_DIR="$HOME/Applications"
 APP_PATH="$INSTALL_DIR/$APP_NAME"
 SIGN_IDENTITY="Developer ID Application: Alfred Zien (GU3RT64VWG)"
@@ -10,9 +10,9 @@ TEAM_ID="GU3RT64VWG"
 NOTARIZE=${NOTARIZE:-true}
 BUILD_DIR="$SCRIPT_DIR/.build/Release"
 
-SERVICE_NAME="dev.multivibe.xcode-mcp-proxy"
+SERVICE_NAME="dev.multivibe.xcmcptap"
 PLIST_PATH="$HOME/Library/LaunchAgents/${SERVICE_NAME}.plist"
-CLIENT_LINK="$HOME/.local/bin/xcode-mcp-client"
+CLIENT_LINK="$HOME/.local/bin/xcmcptap"
 
 # --- Uninstall ---
 
@@ -30,9 +30,9 @@ fi
 echo "Generating Xcode project..."
 xcodegen generate --spec "$SCRIPT_DIR/project.yml"
 
-echo "Building XcodeMCPProxy..."
-xcodebuild -project "$SCRIPT_DIR/XcodeMCPProxy.xcodeproj" \
-  -scheme XcodeMCPProxy \
+echo "Building Xcode MCP Tap..."
+xcodebuild -project "$SCRIPT_DIR/XcodeMCPTap.xcodeproj" \
+  -scheme XcodeMCPTap \
   -configuration Release \
   CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
   CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
@@ -50,7 +50,7 @@ spctl --assess --type execute --verbose "$APP_BUNDLE" 2>&1 || true
 
 if [ "$NOTARIZE" = "true" ]; then
   echo "Submitting for notarization..."
-  ZIP_PATH="$SCRIPT_DIR/.build/XcodeMCPProxy.zip"
+  ZIP_PATH="$SCRIPT_DIR/.build/XcodeMCPTap.zip"
   ditto -c -k --keepParent "$APP_BUNDLE" "$ZIP_PATH"
 
   xcrun notarytool submit "$ZIP_PATH" \
@@ -77,7 +77,7 @@ fi
 
 if [ "${1:-}" = "--dmg" ]; then
   echo "Creating DMG..."
-  DMG_NAME="XcodeMCPProxy"
+  DMG_NAME="XcodeMCPTap"
   DMG_STAGING="$SCRIPT_DIR/.build/dmg"
   DMG_TEMP="$SCRIPT_DIR/.build/${DMG_NAME}-rw.dmg"
   DMG_FINAL="$SCRIPT_DIR/.build/${DMG_NAME}.dmg"
@@ -136,8 +136,8 @@ echo "Installed $APP_NAME to $INSTALL_DIR"
 
 # --- Register LaunchAgent ---
 
-SERVICE_BIN="$APP_PATH/Contents/MacOS/xcode-mcp-service"
-CLIENT_BIN="$APP_PATH/Contents/MacOS/xcode-mcp-client"
+SERVICE_BIN="$APP_PATH/Contents/MacOS/xcmcptapd"
+CLIENT_BIN="$APP_PATH/Contents/MacOS/xcmcptap"
 LOG_PATH="$HOME/Library/Logs/${SERVICE_NAME}.log"
 
 launchctl bootout "gui/$(id -u)/${SERVICE_NAME}" 2>/dev/null || true

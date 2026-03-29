@@ -1,7 +1,7 @@
 import class Foundation.JSONSerialization
 import struct Foundation.Data
 import Synchronization
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 final class MCPRouter: @unchecked Sendable {
   var sendToClient: (@Sendable (String) -> Void)?
@@ -31,7 +31,7 @@ final class MCPRouter: @unchecked Sendable {
 
     bridge.start()
 
-    bridge.write("{\"jsonrpc\":\"2.0\",\"id\":\"proxy-init\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"XcodeMCPProxy\",\"version\":\"1.0\"}}}")
+    bridge.write("{\"jsonrpc\":\"2.0\",\"id\":\"proxy-init\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"XcodeMCPTap\",\"version\":\"1.0\"}}}")
   }
 
   func handleClientMessage(_ content: String) {

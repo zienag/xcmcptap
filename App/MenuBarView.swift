@@ -1,5 +1,5 @@
 import SwiftUI
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 struct MenuBarView: View {
   @Bindable var viewModel: StatusViewModel

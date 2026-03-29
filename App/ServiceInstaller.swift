@@ -1,10 +1,10 @@
 import Foundation
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 enum ServiceInstaller {
   private static let uid = getuid()
-  static let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(MCPProxy.serviceName).plist"
-  static let clientLinkPath = NSHomeDirectory() + "/.local/bin/xcode-mcp-client"
+  static let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(MCPTap.serviceName).plist"
+  static let clientLinkPath = NSHomeDirectory() + "/.local/bin/xcmcptap"
 
   static func install() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
@@ -14,14 +14,14 @@ enum ServiceInstaller {
 
     let servicePath = Bundle.main.executableURL!
       .deletingLastPathComponent()
-      .appendingPathComponent("xcode-mcp-service").path
+      .appendingPathComponent("xcmcptapd").path
     let clientPath = Bundle.main.executableURL!
       .deletingLastPathComponent()
-      .appendingPathComponent("xcode-mcp-client").path
-    let logPath = NSHomeDirectory() + "/Library/Logs/\(MCPProxy.serviceName).log"
+      .appendingPathComponent("xcmcptap").path
+    let logPath = NSHomeDirectory() + "/Library/Logs/\(MCPTap.serviceName).log"
 
     // Bootout old service if running
-    run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPProxy.serviceName)")
+    run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")
 
     // Write LaunchAgent plist
     let plist = """
@@ -30,16 +30,16 @@ enum ServiceInstaller {
       <plist version="1.0">
       <dict>
         <key>Label</key>
-        <string>\(MCPProxy.serviceName)</string>
+        <string>\(MCPTap.serviceName)</string>
         <key>ProgramArguments</key>
         <array>
           <string>\(servicePath)</string>
         </array>
         <key>MachServices</key>
         <dict>
-          <key>\(MCPProxy.serviceName)</key>
+          <key>\(MCPTap.serviceName)</key>
           <true/>
-          <key>\(MCPProxy.statusServiceName)</key>
+          <key>\(MCPTap.statusServiceName)</key>
           <true/>
         </dict>
         <key>StandardOutPath</key>
@@ -59,7 +59,7 @@ enum ServiceInstaller {
 
     // Register and start
     run("/bin/launchctl", "bootstrap", "gui/\(uid)", plistPath)
-    run("/bin/launchctl", "kickstart", "gui/\(uid)/\(MCPProxy.serviceName)")
+    run("/bin/launchctl", "kickstart", "gui/\(uid)/\(MCPTap.serviceName)")
 
     // Symlink client
     let linkDir = URL(fileURLWithPath: clientLinkPath).deletingLastPathComponent().path
@@ -69,7 +69,7 @@ enum ServiceInstaller {
   }
 
   static func uninstall() {
-    run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPProxy.serviceName)")
+    run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")
     try? FileManager.default.removeItem(atPath: plistPath)
     try? FileManager.default.removeItem(atPath: clientLinkPath)
   }

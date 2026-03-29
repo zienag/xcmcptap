@@ -1,9 +1,9 @@
 import struct Foundation.Date
 import struct Foundation.UUID
 
-public enum MCPProxy {
-  public static let serviceName = "dev.multivibe.xcode-mcp-proxy"
-  public static let statusServiceName = "dev.multivibe.xcode-mcp-proxy.status"
+public enum MCPTap {
+  public static let serviceName = "dev.multivibe.xcmcptap"
+  public static let statusServiceName = "dev.multivibe.xcmcptap.status"
 }
 
 public struct MCPLine: Codable, Sendable {

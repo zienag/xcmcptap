@@ -1,4 +1,4 @@
-name: XcodeMCPProxy
+name: XcodeMCPTap
 options:
   deploymentTarget:
     macOS: "26.0"
@@ -12,22 +12,22 @@ localPackages:
   - .
 
 targets:
-  XcodeMCPProxy:
+  XcodeMCPTap:
     type: application
     platform: macOS
     sources:
       - App
     dependencies:
-      - package: XcodeMCPProxy
-        product: XcodeMCPShared
-      - package: XcodeMCPProxy
-        product: xcode-mcp-service
+      - package: XcodeMCPTap
+        product: XcodeMCPTapShared
+      - package: XcodeMCPTap
+        product: xcmcptapd
         link: false
         embed: true
         copy:
           destination: executables
-      - package: XcodeMCPProxy
-        product: xcode-mcp-client
+      - package: XcodeMCPTap
+        product: xcmcptap
         link: false
         embed: true
         copy:
@@ -36,8 +36,10 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleIconName: AppIcon
+        CFBundleName: Xcode MCP Tap
         LSUIElement: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.multivibe.xcode-mcp-proxy
+        PRODUCT_BUNDLE_IDENTIFIER: dev.multivibe.xcmcptap
+        PRODUCT_NAME: Xcode MCP Tap
         ENABLE_HARDENED_RUNTIME: YES

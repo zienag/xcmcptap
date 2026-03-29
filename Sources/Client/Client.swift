@@ -1,16 +1,16 @@
 import Foundation
 import XPC
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 @main
-struct XcodeMCPClient {
+struct XcodeMCPTapClient {
   static func main() {
     let stdoutQueue = DispatchQueue(label: "stdout")
 
     let session: XPCSession
     do {
       session = try XPCSession(
-        machService: MCPProxy.serviceName,
+        machService: MCPTap.serviceName,
         incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
           stdoutQueue.async {
             print(message.content)

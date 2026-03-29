@@ -1,7 +1,7 @@
 import struct Foundation.Date
 import struct Foundation.UUID
 import Synchronization
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 final class ConnectionRegistry: @unchecked Sendable {
   private let state = Mutex(State())

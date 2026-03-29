@@ -1,11 +1,11 @@
 import Foundation
 import Testing
 import XPC
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct XPCIntegrationTests {
-  static let serviceName = "dev.multivibe.xcode-mcp-proxy.test-echo"
+  static let serviceName = "dev.multivibe.xcmcptap.test-echo"
 
   init() throws {
     try Self.ensureEchoServerRunning()

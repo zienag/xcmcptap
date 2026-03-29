@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 import XPC
-import XcodeMCPShared
+import XcodeMCPTapShared
 import AppKit
 
 @Observable
@@ -68,7 +68,7 @@ final class StatusViewModel: @unchecked Sendable {
     }
 
     let newSession = try XPCSession(
-      machService: MCPProxy.statusServiceName,
+      machService: MCPTap.statusServiceName,
       incomingMessageHandler: { [weak self] (event: StatusEvent) -> (any Encodable)? in
         DispatchQueue.main.async {
           self?.handleEvent(event)

@@ -2,39 +2,39 @@
 import PackageDescription
 
 let package = Package(
-  name: "XcodeMCPProxy",
+  name: "XcodeMCPTap",
   platforms: [.macOS("26.0")],
   products: [
-    .library(name: "XcodeMCPShared", targets: ["XcodeMCPShared"]),
-    .executable(name: "xcode-mcp-service", targets: ["xcode-mcp-service"]),
-    .executable(name: "xcode-mcp-client", targets: ["xcode-mcp-client"]),
+    .library(name: "XcodeMCPTapShared", targets: ["XcodeMCPTapShared"]),
+    .executable(name: "xcmcptapd", targets: ["xcmcptapd"]),
+    .executable(name: "xcmcptap", targets: ["xcmcptap"]),
   ],
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.4.0"),
   ],
   targets: [
-    .target(name: "XcodeMCPShared", path: "Sources/Shared"),
+    .target(name: "XcodeMCPTapShared", path: "Sources/Shared"),
     .executableTarget(
-      name: "xcode-mcp-service",
+      name: "xcmcptapd",
       dependencies: [
-        "XcodeMCPShared",
+        "XcodeMCPTapShared",
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
       path: "Sources/Service"
     ),
     .executableTarget(
-      name: "xcode-mcp-client",
-      dependencies: ["XcodeMCPShared"],
+      name: "xcmcptap",
+      dependencies: ["XcodeMCPTapShared"],
       path: "Sources/Client"
     ),
     .executableTarget(
       name: "xpc-test-echo-server",
-      dependencies: ["XcodeMCPShared"],
+      dependencies: ["XcodeMCPTapShared"],
       path: "Sources/TestEchoServer"
     ),
     .testTarget(
       name: "XPCTests",
-      dependencies: ["XcodeMCPShared"],
+      dependencies: ["XcodeMCPTapShared"],
       path: "Tests/XPCTests"
     ),
   ]

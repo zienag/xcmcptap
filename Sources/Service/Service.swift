@@ -1,9 +1,9 @@
 import struct Foundation.UUID
 import XPC
-import XcodeMCPShared
+import XcodeMCPTapShared
 
 @main
-struct XcodeMCPService {
+struct XcodeMCPTapService {
   static func main() {
     fputs("[service] starting\n", stderr)
 
@@ -11,7 +11,7 @@ struct XcodeMCPService {
     let statusEndpoint = StatusEndpoint(registry: registry)
 
     let listener = try! XPCListener(
-      service: MCPProxy.serviceName
+      service: MCPTap.serviceName
     ) { request in
       fputs("[service] new XPC connection\n", stderr)
       let connectionID = UUID()
