@@ -1,4 +1,5 @@
 import Darwin.C
+import struct Foundation.Data
 import Subprocess
 import Synchronization
 import System
@@ -7,8 +8,8 @@ final class BridgeProcess: @unchecked Sendable {
   var onOutput: (@Sendable (String) -> Void)?
   var onExit: (@Sendable () -> Void)?
 
-  private let stdinContinuation: AsyncStream<String>.Continuation
-  private let stdinStream: AsyncStream<String>
+  private let stdinContinuation: AsyncStream<Data>.Continuation
+  private let stdinStream: AsyncStream<Data>
   private var task: Task<Void, Never>?
   private let _processID = Mutex<pid_t>(0)
 
@@ -37,8 +38,10 @@ final class BridgeProcess: @unchecked Sendable {
 
           try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask {
-              for await content in stdinStream {
-                _ = try await inputWriter.write(content + "\n", using: UTF8.self)
+              for await data in stdinStream {
+                var payload = data
+                payload.append(0x0A)
+                _ = try await inputWriter.write(payload)
               }
               try await inputWriter.finish()
             }
@@ -56,8 +59,8 @@ final class BridgeProcess: @unchecked Sendable {
     }
   }
 
-  func write(_ content: String) {
-    stdinContinuation.yield(content)
+  func write(_ data: Data) {
+    stdinContinuation.yield(data)
   }
 
   func terminate() {

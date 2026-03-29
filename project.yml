@@ -8,8 +8,9 @@ settings:
     SWIFT_VERSION: "6"
     DEVELOPMENT_TEAM: GU3RT64VWG
 
-localPackages:
-  - .
+packages:
+  XcodeMCPTapPackage:
+    path: .
 
 targets:
   XcodeMCPTap:
@@ -18,15 +19,15 @@ targets:
     sources:
       - App
     dependencies:
-      - package: XcodeMCPTap
+      - package: XcodeMCPTapPackage
         product: XcodeMCPTapShared
-      - package: XcodeMCPTap
+      - package: XcodeMCPTapPackage
         product: xcmcptapd
         link: false
         embed: true
         copy:
           destination: executables
-      - package: XcodeMCPTap
+      - package: XcodeMCPTapPackage
         product: xcmcptap
         link: false
         embed: true

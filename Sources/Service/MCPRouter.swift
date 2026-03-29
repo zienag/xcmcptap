@@ -1,3 +1,4 @@
+import class Foundation.JSONEncoder
 import class Foundation.JSONSerialization
 import struct Foundation.Data
 import Synchronization
@@ -31,7 +32,17 @@ final class MCPRouter: @unchecked Sendable {
 
     bridge.start()
 
-    bridge.write("{\"jsonrpc\":\"2.0\",\"id\":\"proxy-init\",\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"XcodeMCPTap\",\"version\":\"1.0\"}}}")
+    bridge.write(try! JSONEncoder().encode(
+      RPCRequest(
+        id: "proxy-init",
+        method: "initialize",
+        params: InitializeParams(
+          protocolVersion: "2024-11-05",
+          capabilities: .init(),
+          clientInfo: .init(name: "XcodeMCPTap", version: "1.0")
+        )
+      )
+    ))
   }
 
   func handleClientMessage(_ content: String) {
@@ -51,7 +62,7 @@ final class MCPRouter: @unchecked Sendable {
 
   private func routeClientMessage(_ content: String) {
     guard let msg = RPCMessage(content) else {
-      bridge.write(content)
+      bridge.write(Data(content.utf8))
       return
     }
 
@@ -72,7 +83,7 @@ final class MCPRouter: @unchecked Sendable {
       break
 
     default:
-      bridge.write(content)
+      bridge.write(Data(content.utf8))
     }
   }
 
@@ -95,7 +106,7 @@ final class MCPRouter: @unchecked Sendable {
       state.withLock { $0.cachedInitResult = resultData }
     }
 
-    bridge.write("{\"jsonrpc\":\"2.0\",\"method\":\"initialized\"}")
+    bridge.write(try! JSONEncoder().encode(RPCNotification(method: "initialized")))
 
     let pending = state.withLock { s -> [String] in
       s.phase = .ready
@@ -107,5 +118,32 @@ final class MCPRouter: @unchecked Sendable {
     for msg in pending {
       routeClientMessage(msg)
     }
+  }
+}
+
+// MARK: - JSON-RPC Encodable Types
+
+private struct RPCRequest<Params: Encodable>: Encodable {
+  var jsonrpc = "2.0"
+  var id: String?
+  var method: String
+  var params: Params
+}
+
+private struct RPCNotification: Encodable {
+  var jsonrpc = "2.0"
+  var method: String
+}
+
+private struct InitializeParams: Encodable {
+  var protocolVersion: String
+  var capabilities: EmptyObject
+  var clientInfo: ClientInfo
+
+  struct EmptyObject: Encodable {}
+
+  struct ClientInfo: Encodable {
+    var name: String
+    var version: String
   }
 }
