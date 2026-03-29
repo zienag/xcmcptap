@@ -1,0 +1,4 @@
+.build/
+.swiftpm/
+XcodeMCPProxy.xcodeproj/
+.DS_Store

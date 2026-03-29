@@ -1,0 +1,43 @@
+name: XcodeMCPProxy
+options:
+  deploymentTarget:
+    macOS: "26.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6"
+    DEVELOPMENT_TEAM: GU3RT64VWG
+
+localPackages:
+  - .
+
+targets:
+  XcodeMCPProxy:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    dependencies:
+      - package: XcodeMCPProxy
+        product: XcodeMCPShared
+      - package: XcodeMCPProxy
+        product: xcode-mcp-service
+        link: false
+        embed: true
+        copy:
+          destination: executables
+      - package: XcodeMCPProxy
+        product: xcode-mcp-client
+        link: false
+        embed: true
+        copy:
+          destination: executables
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleIconName: AppIcon
+        LSUIElement: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.multivibe.xcode-mcp-proxy
+        ENABLE_HARDENED_RUNTIME: YES
