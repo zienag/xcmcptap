@@ -14,11 +14,19 @@ let package = Package(
   ],
   targets: [
     .target(name: "XcodeMCPTapShared", path: "Sources/Shared"),
-    .executableTarget(
-      name: "xcmcptapd",
+    .target(
+      name: "XcodeMCPTapServiceCore",
       dependencies: [
         "XcodeMCPTapShared",
         .product(name: "Subprocess", package: "swift-subprocess"),
+      ],
+      path: "Sources/ServiceCore"
+    ),
+    .executableTarget(
+      name: "xcmcptapd",
+      dependencies: [
+        "XcodeMCPTapServiceCore",
+        "XcodeMCPTapShared",
       ],
       path: "Sources/Service"
     ),
@@ -34,7 +42,11 @@ let package = Package(
     ),
     .testTarget(
       name: "XPCTests",
-      dependencies: ["XcodeMCPTapShared"],
+      dependencies: [
+        "XcodeMCPTapServiceCore",
+        "XcodeMCPTapShared",
+        .product(name: "Subprocess", package: "swift-subprocess"),
+      ],
       path: "Tests/XPCTests"
     ),
   ]

@@ -3,15 +3,15 @@ import Synchronization
 import XPC
 import XcodeMCPTapShared
 
-final class StatusEndpoint: @unchecked Sendable {
+public final class StatusEndpoint: @unchecked Sendable {
   private let registry: ConnectionRegistry
   private let sessions = Mutex<[UUID: XPCSession]>([:])
 
-  init(registry: ConnectionRegistry) {
+  public init(registry: ConnectionRegistry) {
     self.registry = registry
   }
 
-  func start() throws -> XPCListener {
+  public func start() throws -> XPCListener {
     let listener = try XPCListener(
       service: MCPTap.statusServiceName
     ) { [self] request in

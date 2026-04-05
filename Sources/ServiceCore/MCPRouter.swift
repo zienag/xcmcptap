@@ -4,8 +4,9 @@ import struct Foundation.Data
 import Synchronization
 import XcodeMCPTapShared
 
-final class MCPRouter: @unchecked Sendable {
-  var sendToClient: (@Sendable (String) -> Void)?
+public final class MCPRouter: @unchecked Sendable {
+  public var sendToClient: (@Sendable (String) -> Void)?
+  public var onToolsDiscovered: (@Sendable ([ToolInfo]) -> Void)?
 
   private let bridge: BridgeProcess
   private let state = Mutex(State())
@@ -18,21 +19,22 @@ final class MCPRouter: @unchecked Sendable {
 
   private enum Phase: Sendable {
     case initializing
+    case fetchingTools
     case ready
   }
 
-  init(bridge: BridgeProcess) {
+  public init(bridge: BridgeProcess) {
     self.bridge = bridge
   }
 
-  func start() {
+  public func start() {
     bridge.onOutput = { [self] line in
       handleBridgeMessage(line)
     }
 
     bridge.start()
 
-    bridge.write(try! JSONEncoder().encode(
+    let initData = try! JSONEncoder().encode(
       RPCRequest(
         id: "proxy-init",
         method: "initialize",
@@ -42,10 +44,12 @@ final class MCPRouter: @unchecked Sendable {
           clientInfo: .init(name: "XcodeMCPTap", version: "1.0")
         )
       )
-    ))
+    )
+
+    bridge.write(initData)
   }
 
-  func handleClientMessage(_ content: String) {
+  public func handleClientMessage(_ content: String) {
     let shouldBuffer = state.withLock { s -> Bool in
       if s.phase != .ready {
         s.pendingClientMessages.append(content)
@@ -73,7 +77,7 @@ final class MCPRouter: @unchecked Sendable {
         "jsonrpc": "2.0",
         "result": (try? JSONSerialization.jsonObject(with: resultData)) as Any,
       ]
-      if let id = msg.parsed.id { response["id"] = id }
+      if let id = msg.parsed.id { response["id"] = id.jsonValue }
       if let data = try? JSONSerialization.data(withJSONObject: response),
          let line = String(data: data, encoding: .utf8) {
         sendToClient?(line)
@@ -88,14 +92,16 @@ final class MCPRouter: @unchecked Sendable {
   }
 
   private func handleBridgeMessage(_ content: String) {
-    let isInitializing = state.withLock { $0.phase == .initializing }
+    let phase = state.withLock { $0.phase }
 
-    if isInitializing {
+    switch phase {
+    case .initializing:
       handleInitResponse(content)
-      return
+    case .fetchingTools:
+      handleToolsResponse(content)
+    case .ready:
+      sendToClient?(content)
     }
-
-    sendToClient?(content)
   }
 
   private func handleInitResponse(_ content: String) {
@@ -107,6 +113,30 @@ final class MCPRouter: @unchecked Sendable {
     }
 
     bridge.write(try! JSONEncoder().encode(RPCNotification(method: "initialized")))
+
+    state.withLock { $0.phase = .fetchingTools }
+
+    bridge.write(try! JSONEncoder().encode(
+      RPCRequest(
+        id: "proxy-tools",
+        method: "tools/list",
+        params: EmptyParams()
+      )
+    ))
+  }
+
+  private func handleToolsResponse(_ content: String) {
+    if let msg = RPCMessage(content),
+       let json = try? JSONSerialization.jsonObject(with: msg.raw) as? [String: Any],
+       let result = json["result"] as? [String: Any],
+       let tools = result["tools"] as? [[String: Any]] {
+      let toolInfos = tools.compactMap { tool -> ToolInfo? in
+        guard let name = tool["name"] as? String else { return nil }
+        let description = tool["description"] as? String ?? ""
+        return ToolInfo(name: name, description: description)
+      }
+      onToolsDiscovered?(toolInfos)
+    }
 
     let pending = state.withLock { s -> [String] in
       s.phase = .ready
@@ -134,6 +164,8 @@ private struct RPCNotification: Encodable {
   var jsonrpc = "2.0"
   var method: String
 }
+
+private struct EmptyParams: Encodable {}
 
 private struct InitializeParams: Encodable {
   var protocolVersion: String

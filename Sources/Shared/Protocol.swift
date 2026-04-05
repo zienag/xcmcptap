@@ -23,10 +23,12 @@ public struct StatusRequest: Codable, Sendable {
 public struct StatusResponse: Codable, Sendable {
   public var connections: [ConnectionInfo]
   public var health: ServiceHealth
+  public var tools: [ToolInfo]
 
-  public init(connections: [ConnectionInfo], health: ServiceHealth) {
+  public init(connections: [ConnectionInfo], health: ServiceHealth, tools: [ToolInfo] = []) {
     self.connections = connections
     self.health = health
+    self.tools = tools
   }
 }
 
@@ -55,6 +57,18 @@ public struct ServiceHealth: Codable, Sendable {
     self.startedAt = startedAt
     self.totalConnectionsServed = totalConnectionsServed
     self.activeConnectionCount = activeConnectionCount
+  }
+}
+
+public struct ToolInfo: Codable, Sendable, Identifiable {
+  public var name: String
+  public var description: String
+
+  public var id: String { name }
+
+  public init(name: String, description: String) {
+    self.name = name
+    self.description = description
   }
 }
 

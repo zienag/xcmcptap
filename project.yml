@@ -6,6 +6,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6"
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     DEVELOPMENT_TEAM: GU3RT64VWG
 
 packages:
@@ -38,7 +39,6 @@ targets:
       properties:
         CFBundleIconName: AppIcon
         CFBundleName: Xcode MCP Tap
-        LSUIElement: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.multivibe.xcmcptap

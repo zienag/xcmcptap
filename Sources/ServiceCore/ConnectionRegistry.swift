@@ -3,18 +3,21 @@ import struct Foundation.UUID
 import Synchronization
 import XcodeMCPTapShared
 
-final class ConnectionRegistry: @unchecked Sendable {
+public final class ConnectionRegistry: @unchecked Sendable {
   private let state = Mutex(State())
   private let startedAt = Date()
 
-  var onEvent: (@Sendable (StatusEvent) -> Void)?
+  public var onEvent: (@Sendable (StatusEvent) -> Void)?
+
+  public init() {}
 
   private struct State: Sendable {
     var connections: [UUID: ConnectionInfo] = [:]
     var totalServed = 0
+    var tools: [ToolInfo] = []
   }
 
-  func register(id: UUID, bridgePID: Int32) -> ConnectionInfo {
+  public func register(id: UUID, bridgePID: Int32) -> ConnectionInfo {
     let info = ConnectionInfo(
       id: id,
       connectedAt: Date(),
@@ -32,21 +35,25 @@ final class ConnectionRegistry: @unchecked Sendable {
     return info
   }
 
-  func unregister(id: UUID) {
+  public func unregister(id: UUID) {
     let info = state.withLock { $0.connections.removeValue(forKey: id) }
     if let info {
       onEvent?(StatusEvent(kind: .connectionClosed, connection: info))
     }
   }
 
-  func recordMessage(id: UUID) {
+  public func recordMessage(id: UUID) {
     state.withLock {
       $0.connections[id]?.messagesRouted += 1
       $0.connections[id]?.lastActivityAt = Date()
     }
   }
 
-  func status() -> StatusResponse {
+  public func updateTools(_ tools: [ToolInfo]) {
+    state.withLock { $0.tools = tools }
+  }
+
+  public func status() -> StatusResponse {
     state.withLock { s in
       StatusResponse(
         connections: s.connections.values.sorted { $0.connectedAt < $1.connectedAt },
@@ -54,7 +61,8 @@ final class ConnectionRegistry: @unchecked Sendable {
           startedAt: startedAt,
           totalConnectionsServed: s.totalServed,
           activeConnectionCount: s.connections.count
-        )
+        ),
+        tools: s.tools
       )
     }
   }

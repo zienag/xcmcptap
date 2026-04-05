@@ -1,27 +1,19 @@
-import Foundation
+import AppKit
+import class Foundation.FileManager
+import Dispatch
 import Observation
 import XPC
 import XcodeMCPTapShared
-import AppKit
 
 @Observable
 final class StatusViewModel: @unchecked Sendable {
   var connections: [ConnectionInfo] = []
   var health: ServiceHealth?
+  var tools: [ToolInfo] = []
   var isServiceRunning = false
 
   var isInstalled: Bool {
     FileManager.default.fileExists(atPath: ServiceInstaller.plistPath)
-  }
-
-  var menuBarIcon: String {
-    if !isServiceRunning {
-      return "xmark.circle"
-    }
-    if connections.isEmpty {
-      return "circle.dotted"
-    }
-    return "circle.fill"
   }
 
   private var session: XPCSession?
@@ -50,12 +42,14 @@ final class StatusViewModel: @unchecked Sendable {
       DispatchQueue.main.async { [self] in
         connections = response.connections
         health = response.health
+        tools = response.tools
         isServiceRunning = true
       }
     } catch {
       DispatchQueue.main.async { [self] in
         connections = []
         health = nil
+        tools = []
         isServiceRunning = false
         session = nil
       }

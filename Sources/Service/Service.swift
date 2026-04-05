@@ -1,5 +1,7 @@
+import Darwin
 import struct Foundation.UUID
 import XPC
+import XcodeMCPTapServiceCore
 import XcodeMCPTapShared
 
 @main
@@ -10,13 +12,31 @@ struct XcodeMCPTapService {
     let registry = ConnectionRegistry()
     let statusEndpoint = StatusEndpoint(registry: registry)
 
+    // Start mcpbridge at service startup (before dispatchMain).
+    // mcpbridge cannot be spawned from XPC accept handlers — it fails
+    // with a decode error when launched in that context.
+    let bridge = BridgeProcess()
+    let router = MCPRouter(bridge: bridge)
+
+    router.onToolsDiscovered = { tools in
+      registry.updateTools(tools)
+    }
+
+    router.start()
+    fputs("[service] bridge started, PID=\(bridge.processID)\n", stderr)
+
+    // Wait for the init handshake to complete before accepting connections
+    sleep(2)
+
+    bridge.onExit = {
+      fputs("[service] bridge process exited\n", stderr)
+    }
+
     let listener = try! XPCListener(
       service: MCPTap.serviceName
     ) { request in
       fputs("[service] new XPC connection\n", stderr)
       let connectionID = UUID()
-      let bridge = BridgeProcess()
-      let router = MCPRouter(bridge: bridge)
 
       let (decision, session) = request.accept(
         incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
@@ -27,7 +47,6 @@ struct XcodeMCPTapService {
         },
         cancellationHandler: { _ in
           fputs("[service] connection cancelled\n", stderr)
-          bridge.terminate()
           registry.unregister(id: connectionID)
         }
       )
@@ -37,23 +56,14 @@ struct XcodeMCPTapService {
         try? session.send(MCPLine(line))
       }
 
-      bridge.onExit = {
-        fputs("[service] bridge process exited\n", stderr)
-        session.cancel(reason: "bridge process exited")
-        registry.unregister(id: connectionID)
-      }
-
-      router.start()
       _ = registry.register(id: connectionID, bridgePID: bridge.processID)
-      fputs("[service] bridge started, PID=\(bridge.processID)\n", stderr)
-
       return decision
     }
 
     let statusListener = try! statusEndpoint.start()
     fputs("[service] listeners ready\n", stderr)
 
-    withExtendedLifetime((listener, statusListener)) {
+    withExtendedLifetime((listener, statusListener, bridge, router)) {
       dispatchMain()
     }
   }

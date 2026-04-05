@@ -18,9 +18,25 @@ CLIENT_LINK="$HOME/.local/bin/xcmcptap"
 
 if [ "${1:-}" = "--uninstall" ]; then
   launchctl bootout "gui/$(id -u)/${SERVICE_NAME}" 2>/dev/null || true
+  osascript -e 'quit app "Xcode MCP Tap"' 2>/dev/null || true
   rm -f "$PLIST_PATH"
   rm -f "$CLIENT_LINK"
   rm -rf "$APP_PATH"
+  echo "Done."
+  exit 0
+fi
+
+# --- Reinstall (rebuild + install, restart running app) ---
+
+if [ "${1:-}" = "--reinstall" ]; then
+  exec "$0"
+fi
+
+# --- Exit running app and service ---
+
+if [ "${1:-}" = "--exit" ]; then
+  launchctl bootout "gui/$(id -u)/${SERVICE_NAME}" 2>/dev/null || true
+  osascript -e 'quit app "Xcode MCP Tap"' 2>/dev/null || true
   echo "Done."
   exit 0
 fi
@@ -129,6 +145,10 @@ fi
 
 # --- Install ---
 
+osascript -e 'quit app "Xcode MCP Tap"' 2>/dev/null || true
+launchctl bootout "gui/$(id -u)/${SERVICE_NAME}" 2>/dev/null || true
+sleep 1
+
 mkdir -p "$INSTALL_DIR"
 rm -rf "$APP_PATH"
 cp -R "$APP_BUNDLE" "$APP_PATH"
@@ -175,6 +195,9 @@ launchctl kickstart "gui/$(id -u)/${SERVICE_NAME}"
 mkdir -p "$(dirname "$CLIENT_LINK")"
 rm -f "$CLIENT_LINK"
 ln -s "$CLIENT_BIN" "$CLIENT_LINK"
+
+# Launch the app
+open "$APP_PATH"
 
 CONFIG_CMD="claude mcp add --transport stdio xcode -- $CLIENT_LINK"
 echo ""

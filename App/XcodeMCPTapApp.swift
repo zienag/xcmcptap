@@ -5,11 +5,9 @@ struct XcodeMCPTapApp: App {
   @State private var viewModel = StatusViewModel()
 
   var body: some Scene {
-    MenuBarExtra {
-      MenuBarView(viewModel: viewModel)
-    } label: {
-      Label("Xcode MCP Tap", systemImage: viewModel.menuBarIcon)
+    Window("Xcode MCP Tap", id: "main") {
+      ContentView(viewModel: viewModel)
     }
-    .menuBarExtraStyle(.window)
+    .defaultSize(width: 500, height: 400)
   }
 }

@@ -1,4 +1,10 @@
-import Foundation
+import Darwin.C
+import class Foundation.Bundle
+import class Foundation.FileHandle
+import class Foundation.FileManager
+import class Foundation.Process
+import func Foundation.NSHomeDirectory
+import struct Foundation.URL
 import XcodeMCPTapShared
 
 enum ServiceInstaller {
