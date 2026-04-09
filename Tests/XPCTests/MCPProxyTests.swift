@@ -1,6 +1,6 @@
-import class Foundation.JSONSerialization
+import class Foundation.JSONDecoder
 import struct Foundation.Data
-import Synchronization
+import struct Foundation.Decimal
 import System
 import Testing
 import XcodeMCPTapServiceCore
@@ -78,6 +78,10 @@ struct MCPProxyTests {
 
   struct TimeoutError: Error {}
 
+  private func decode(_ string: String) throws -> RPCEnvelope {
+    try JSONDecoder().decode(RPCEnvelope.self, from: Data(string.utf8))
+  }
+
   // MARK: - Tests
 
   @Test func initializeHandshake() async throws {
@@ -94,16 +98,23 @@ struct MCPProxyTests {
     )
 
     let response = try await collector.nextResponse()
-    let json = try JSONSerialization.jsonObject(with: Data(response.utf8)) as! [String: Any]
+    let envelope = try decode(response)
 
     // Should have the client's id, not proxy-init
-    #expect(json["id"] as? Int == 42)
-    #expect(json["jsonrpc"] as? String == "2.0")
+    #expect(envelope.id == 42)
+    #expect(envelope.rest["jsonrpc"] == "2.0")
 
-    let result = json["result"] as! [String: Any]
-    let serverInfo = result["serverInfo"] as! [String: Any]
-    #expect(serverInfo["name"] as? String == "fake-mcp-server")
-    #expect(result["protocolVersion"] as? String == "2024-11-05")
+    let result = try #require(envelope.rest["result"])
+    guard case .object(let resultDict) = result else {
+      Issue.record("result should be an object")
+      return
+    }
+    guard case .object(let serverInfo)? = resultDict["serverInfo"] else {
+      Issue.record("serverInfo should be an object")
+      return
+    }
+    #expect(serverInfo["name"] == "fake-mcp-server")
+    #expect(resultDict["protocolVersion"] == "2024-11-05")
 
     bridge.terminate()
   }
@@ -127,12 +138,18 @@ struct MCPProxyTests {
     router.handleClientMessage(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
 
     let response = try await collector.nextResponse()
-    let json = try JSONSerialization.jsonObject(with: Data(response.utf8)) as! [String: Any]
+    let envelope = try decode(response)
 
-    #expect(json["id"] as? Int == 2)
-    let result = json["result"] as! [String: Any]
-    let tools = result["tools"] as! [[String: Any]]
-    let toolNames = tools.map { $0["name"] as! String }
+    #expect(envelope.id == 2)
+    guard case .object(let result)? = envelope.rest["result"],
+          case .array(let tools)? = result["tools"] else {
+      Issue.record("Expected result.tools array")
+      return
+    }
+    let toolNames = tools.compactMap { tool -> String? in
+      guard case .object(let t) = tool, case .string(let name)? = t["name"] else { return nil }
+      return name
+    }
     #expect(toolNames.contains("echo"))
     #expect(toolNames.contains("greet"))
 
@@ -160,16 +177,23 @@ struct MCPProxyTests {
     )
 
     let response = try await collector.nextResponse()
-    let json = try JSONSerialization.jsonObject(with: Data(response.utf8)) as! [String: Any]
+    let envelope = try decode(response)
 
-    #expect(json["id"] as? Int == 3)
-    let result = json["result"] as! [String: Any]
-    let content = result["content"] as! [[String: Any]]
-    let text = content[0]["text"] as! String
-    let echoed = try JSONSerialization.jsonObject(with: Data(text.utf8)) as! [String: Any]
-    #expect(echoed["tool"] as? String == "echo")
-    let args = echoed["arguments"] as! [String: Any]
-    #expect(args["message"] as? String == "hello world")
+    #expect(envelope.id == 3)
+    guard case .object(let result)? = envelope.rest["result"],
+          case .array(let content)? = result["content"],
+          case .object(let first)? = content.first,
+          case .string(let text)? = first["text"] else {
+      Issue.record("Expected result.content[0].text")
+      return
+    }
+    let echoed = try decode(text)
+    #expect(echoed.rest["tool"] == "echo")
+    guard case .object(let args)? = echoed.rest["arguments"] else {
+      Issue.record("Expected arguments object")
+      return
+    }
+    #expect(args["message"] == "hello world")
 
     bridge.terminate()
   }
@@ -199,10 +223,9 @@ struct MCPProxyTests {
     let responses = try await collector.collect(count: 5)
     #expect(responses.count == 5)
 
-    for response in responses {
-      let json = try JSONSerialization.jsonObject(with: Data(response.utf8)) as! [String: Any]
-      let id = json["id"] as! Int
-      #expect(id >= 10 && id < 15)
+    let ids = try responses.map { try decode($0).id }
+    for i in 10 ..< 15 {
+      #expect(ids.contains(JSONValue.number(Decimal(i))))
     }
 
     bridge.terminate()
@@ -227,11 +250,11 @@ struct MCPProxyTests {
     let responses = try await collector.collect(count: 2)
     #expect(responses.count == 2)
 
-    let first = try JSONSerialization.jsonObject(with: Data(responses[0].utf8)) as! [String: Any]
-    #expect(first["id"] as? Int == 1)
+    let first = try decode(responses[0])
+    #expect(first.id == 1)
 
-    let second = try JSONSerialization.jsonObject(with: Data(responses[1].utf8)) as! [String: Any]
-    #expect(second["id"] as? Int == 2)
+    let second = try decode(responses[1])
+    #expect(second.id == 2)
 
     bridge.terminate()
   }

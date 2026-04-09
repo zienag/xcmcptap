@@ -3,16 +3,29 @@ import Subprocess
 import Synchronization
 import System
 
-public final class BridgeProcess: @unchecked Sendable {
-  public var onOutput: (@Sendable (String) -> Void)?
-  public var onExit: (@Sendable () -> Void)?
-
+public final class BridgeProcess: Sendable {
   private let executablePath: String
   private let executableArgs: [String]
   private let inputStream: AsyncStream<[UInt8]>
   private let inputContinuation: AsyncStream<[UInt8]>.Continuation
   private let _processID = Mutex<pid_t>(0)
   private let _task = Mutex<Task<Void, Never>?>(nil)
+  private let callbacks = Mutex(Callbacks())
+
+  private struct Callbacks: Sendable {
+    var onOutput: (@Sendable (String) -> Void)?
+    var onExit: (@Sendable () -> Void)?
+  }
+
+  public var onOutput: (@Sendable (String) -> Void)? {
+    get { callbacks.withLock { $0.onOutput } }
+    set { callbacks.withLock { $0.onOutput = newValue } }
+  }
+
+  public var onExit: (@Sendable () -> Void)? {
+    get { callbacks.withLock { $0.onExit } }
+    set { callbacks.withLock { $0.onExit = newValue } }
+  }
 
   public var processID: pid_t {
     _processID.withLock { $0 }
@@ -27,8 +40,9 @@ public final class BridgeProcess: @unchecked Sendable {
   }
 
   public func start() {
-    let onOutput = onOutput
-    let onExit = onExit
+    let cbs = callbacks.withLock { $0 }
+    let onOutput = cbs.onOutput
+    let onExit = cbs.onExit
     let inputStream = inputStream
 
     let task = Task.detached { [self] in

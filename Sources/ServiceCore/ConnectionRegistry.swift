@@ -3,11 +3,9 @@ import struct Foundation.UUID
 import Synchronization
 import XcodeMCPTapShared
 
-public final class ConnectionRegistry: @unchecked Sendable {
+public final class ConnectionRegistry: Sendable {
   private let state = Mutex(State())
   private let startedAt = Date()
-
-  public var onEvent: (@Sendable (StatusEvent) -> Void)?
 
   public init() {}
 
@@ -15,6 +13,12 @@ public final class ConnectionRegistry: @unchecked Sendable {
     var connections: [UUID: ConnectionInfo] = [:]
     var totalServed = 0
     var tools: [ToolInfo] = []
+    var onEvent: (@Sendable (StatusEvent) -> Void)?
+  }
+
+  public var onEvent: (@Sendable (StatusEvent) -> Void)? {
+    get { state.withLock { $0.onEvent } }
+    set { state.withLock { $0.onEvent = newValue } }
   }
 
   public func register(id: UUID, bridgePID: Int32) -> ConnectionInfo {
@@ -26,19 +30,22 @@ public final class ConnectionRegistry: @unchecked Sendable {
       bridgePID: bridgePID
     )
 
-    state.withLock {
+    let handler = state.withLock {
       $0.connections[id] = info
       $0.totalServed += 1
+      return $0.onEvent
     }
 
-    onEvent?(StatusEvent(kind: .connectionOpened, connection: info))
+    handler?(StatusEvent(kind: .connectionOpened, connection: info))
     return info
   }
 
   public func unregister(id: UUID) {
-    let info = state.withLock { $0.connections.removeValue(forKey: id) }
+    let (info, handler) = state.withLock {
+      ($0.connections.removeValue(forKey: id), $0.onEvent)
+    }
     if let info {
-      onEvent?(StatusEvent(kind: .connectionClosed, connection: info))
+      handler?(StatusEvent(kind: .connectionClosed, connection: info))
     }
   }
 

@@ -145,7 +145,7 @@ struct XPCIntegrationTests {
     process.waitUntilExit()
 
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    let binDir = String(data: data, encoding: .utf8)!
+    let binDir = try #require(String(data: data, encoding: .utf8))
       .trimmingCharacters(in: .whitespacesAndNewlines)
     return "\(binDir)/\(name)"
   }

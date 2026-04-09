@@ -1,20 +1,29 @@
+import class Foundation.JSONDecoder
 import class Foundation.JSONEncoder
-import class Foundation.JSONSerialization
 import struct Foundation.Data
 import Synchronization
 import XcodeMCPTapShared
 
-public final class MCPRouter: @unchecked Sendable {
-  public var sendToClient: (@Sendable (String) -> Void)?
-  public var onToolsDiscovered: (@Sendable ([ToolInfo]) -> Void)?
-
+public final class MCPRouter: Sendable {
   private let bridge: BridgeProcess
   private let state = Mutex(State())
 
   private struct State: Sendable {
     var phase: Phase = .initializing
-    var cachedInitResult: Data = Data()
+    var cachedInitResponse: RPCEnvelope?
     var pendingClientMessages: [String] = []
+    var sendToClient: (@Sendable (String) -> Void)?
+    var onToolsDiscovered: (@Sendable ([ToolInfo]) -> Void)?
+  }
+
+  public var sendToClient: (@Sendable (String) -> Void)? {
+    get { state.withLock { $0.sendToClient } }
+    set { state.withLock { $0.sendToClient = newValue } }
+  }
+
+  public var onToolsDiscovered: (@Sendable ([ToolInfo]) -> Void)? {
+    get { state.withLock { $0.onToolsDiscovered } }
+    set { state.withLock { $0.onToolsDiscovered = newValue } }
   }
 
   private enum Phase: Sendable {
@@ -34,19 +43,24 @@ public final class MCPRouter: @unchecked Sendable {
 
     bridge.start()
 
-    let initData = try! JSONEncoder().encode(
-      RPCRequest(
-        id: "proxy-init",
-        method: "initialize",
-        params: InitializeParams(
-          protocolVersion: "2024-11-05",
-          capabilities: .init(),
-          clientInfo: .init(name: "XcodeMCPTap", version: "1.0")
-        )
-      )
+    let initEnvelope = RPCEnvelope(
+      id: "proxy-init",
+      method: "initialize",
+      rest: [
+        "jsonrpc": "2.0",
+        "params": [
+          "protocolVersion": "2024-11-05",
+          "capabilities": [:],
+          "clientInfo": [
+            "name": "XcodeMCPTap",
+            "version": "1.0",
+          ],
+        ],
+      ]
     )
 
-    bridge.write(initData)
+    guard let data = try? JSONEncoder().encode(initEnvelope) else { return }
+    bridge.write(data)
   }
 
   public func handleClientMessage(_ content: String) {
@@ -65,22 +79,22 @@ public final class MCPRouter: @unchecked Sendable {
   // MARK: - Private
 
   private func routeClientMessage(_ content: String) {
-    guard let msg = RPCMessage(content) else {
+    guard let envelope = try? JSONDecoder().decode(
+      RPCEnvelope.self, from: Data(content.utf8)
+    ) else {
       bridge.write(Data(content.utf8))
       return
     }
 
-    switch msg.parsed.method {
+    switch envelope.method {
     case "initialize":
-      let resultData = state.withLock { $0.cachedInitResult }
-      var response: [String: Any] = [
-        "jsonrpc": "2.0",
-        "result": (try? JSONSerialization.jsonObject(with: resultData)) as Any,
-      ]
-      if let id = msg.parsed.id { response["id"] = id.jsonValue }
-      if let data = try? JSONSerialization.data(withJSONObject: response),
-         let line = String(data: data, encoding: .utf8) {
-        sendToClient?(line)
+      let (cached, handler) = state.withLock { ($0.cachedInitResponse, $0.sendToClient) }
+      if var response = cached {
+        response.id = envelope.id
+        if let data = try? JSONEncoder().encode(response),
+           let line = String(data: data, encoding: .utf8) {
+          handler?(line)
+        }
       }
 
     case "initialized":
@@ -100,42 +114,60 @@ public final class MCPRouter: @unchecked Sendable {
     case .fetchingTools:
       handleToolsResponse(content)
     case .ready:
-      sendToClient?(content)
+      let handler = state.withLock { $0.sendToClient }
+      handler?(content)
     }
   }
 
   private func handleInitResponse(_ content: String) {
-    if let msg = RPCMessage(content),
-       let json = try? JSONSerialization.jsonObject(with: msg.raw) as? [String: Any],
-       let result = json["result"],
-       let resultData = try? JSONSerialization.data(withJSONObject: result) {
-      state.withLock { $0.cachedInitResult = resultData }
+    if let envelope = try? JSONDecoder().decode(
+      RPCEnvelope.self, from: Data(content.utf8)
+    ) {
+      state.withLock { $0.cachedInitResponse = envelope }
     }
 
-    bridge.write(try! JSONEncoder().encode(RPCNotification(method: "initialized")))
+    let initializedEnvelope = RPCEnvelope(
+      method: "initialized",
+      rest: ["jsonrpc": "2.0"]
+    )
+    if let data = try? JSONEncoder().encode(initializedEnvelope) {
+      bridge.write(data)
+    }
 
     state.withLock { $0.phase = .fetchingTools }
 
-    bridge.write(try! JSONEncoder().encode(
-      RPCRequest(
-        id: "proxy-tools",
-        method: "tools/list",
-        params: EmptyParams()
-      )
-    ))
+    let toolsEnvelope = RPCEnvelope(
+      id: "proxy-tools",
+      method: "tools/list",
+      rest: [
+        "jsonrpc": "2.0",
+        "params": [:],
+      ]
+    )
+    if let data = try? JSONEncoder().encode(toolsEnvelope) {
+      bridge.write(data)
+    }
   }
 
   private func handleToolsResponse(_ content: String) {
-    if let msg = RPCMessage(content),
-       let json = try? JSONSerialization.jsonObject(with: msg.raw) as? [String: Any],
-       let result = json["result"] as? [String: Any],
-       let tools = result["tools"] as? [[String: Any]] {
-      let toolInfos = tools.compactMap { tool -> ToolInfo? in
-        guard let name = tool["name"] as? String else { return nil }
-        let description = tool["description"] as? String ?? ""
+    if let envelope = try? JSONDecoder().decode(
+      RPCEnvelope.self, from: Data(content.utf8)
+    ),
+      case .object(let result)? = envelope.rest["result"],
+      case .array(let tools)? = result["tools"] {
+      let toolInfos = tools.compactMap { toolValue -> ToolInfo? in
+        guard case .object(let tool) = toolValue,
+              case .string(let name)? = tool["name"] else { return nil }
+        let description: String
+        if case .string(let d)? = tool["description"] {
+          description = d
+        } else {
+          description = ""
+        }
         return ToolInfo(name: name, description: description)
       }
-      onToolsDiscovered?(toolInfos)
+      let handler = state.withLock { $0.onToolsDiscovered }
+      handler?(toolInfos)
     }
 
     let pending = state.withLock { s -> [String] in
@@ -148,34 +180,5 @@ public final class MCPRouter: @unchecked Sendable {
     for msg in pending {
       routeClientMessage(msg)
     }
-  }
-}
-
-// MARK: - JSON-RPC Encodable Types
-
-private struct RPCRequest<Params: Encodable>: Encodable {
-  var jsonrpc = "2.0"
-  var id: String?
-  var method: String
-  var params: Params
-}
-
-private struct RPCNotification: Encodable {
-  var jsonrpc = "2.0"
-  var method: String
-}
-
-private struct EmptyParams: Encodable {}
-
-private struct InitializeParams: Encodable {
-  var protocolVersion: String
-  var capabilities: EmptyObject
-  var clientInfo: ClientInfo
-
-  struct EmptyObject: Encodable {}
-
-  struct ClientInfo: Encodable {
-    var name: String
-    var version: String
   }
 }

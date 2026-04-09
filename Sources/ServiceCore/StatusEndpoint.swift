@@ -3,7 +3,7 @@ import Synchronization
 import XPC
 import XcodeMCPTapShared
 
-public final class StatusEndpoint: @unchecked Sendable {
+public final class StatusEndpoint: Sendable {
   private let registry: ConnectionRegistry
   private let sessions = Mutex<[UUID: XPCSession]>([:])
 
