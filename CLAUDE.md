@@ -36,12 +36,13 @@ Several projects on GitHub solve this same problem. Key reference implementation
 ## Build, Test & Install
 
 ```bash
-# Xcode project (primary)
-xcodebuild -scheme XcodeMCPTap      # Build .app bundle (debug)
-xcodebuild -scheme XcodeMCPTap -configuration Release  # Release build
+# Xcode project (primary — run xcodegen first)
+xcodegen generate                      # .xcodeproj is gitignored, must regenerate
+xcodebuild -scheme XcodeMCPTap         # Build .app bundle (debug)
 
-# SPM (still works for libraries/tests)
+# SPM (libraries/tests)
 swift build                            # Build all SPM targets
+swift build -Xswiftc -warnings-as-errors  # Same, with warnings as errors
 swift test                             # Run XPC integration tests
 
 # Install & distribute
@@ -50,6 +51,8 @@ swift test                             # Run XPC integration tests
 ./install.sh --uninstall               # Remove app, LaunchAgent, and symlink
 NOTARIZE=false ./install.sh            # Skip notarization (local dev)
 ```
+
+**Warnings-as-errors:** Xcode builds enforce this via `SWIFT_TREAT_WARNINGS_AS_ERRORS: YES` in `project.yml`. SPM has no clean Package.swift setting for this — pass `-Xswiftc -warnings-as-errors` on the command line.
 
 ### Xcode Project
 
@@ -104,20 +107,21 @@ Defined in both `project.yml` (Xcode project) and `Package.swift` (SPM):
 
 ### Key design details
 
-- `BridgeProcess` uses Foundation `Process` with POSIX `read()` on a dedicated thread for stdout.
-- `MCPRouter` pre-initializes the bridge (sends `initialize` + `initialized` + `tools/list`), caches the init response, and replays it to each client.
-- The service creates ONE shared `BridgeProcess` at startup and multiplexes all XPC connections through it.
-- `install.sh` builds via `xcodebuild`, signs with Developer ID, notarizes, and optionally creates a `.dmg`.
-- Requires macOS 26.0+ (Swift 6.2, uses Foundation `XPC` module directly).
+- **Subprocess I/O:** `BridgeProcess` uses [swift-subprocess](https://github.com/swiftlang/swift-subprocess) (not Foundation.Process). An `AsyncStream<[UInt8]>` bridges the synchronous `write()` calls (from XPC handlers) to the async `StandardInputWriter` inside the `run()` closure. `preferredBufferSize: 1` is required — larger buffers cause DispatchIO to hold back interactive output. `outputSequence.lines()` reads stdout line-by-line (strips newlines).
+- **MCP init caching:** `MCPRouter` pre-initializes the bridge (sends `initialize` + `initialized` + `tools/list`), caches the init response, and replays it to each client. Messages arriving before init completes are buffered in `pendingClientMessages`.
+- **Single bridge, many clients:** The service creates ONE shared `BridgeProcess` at startup and multiplexes all XPC connections through it.
+- **Build & distribute:** `install.sh` builds via `xcodebuild`, signs with Developer ID, notarizes, and optionally creates a `.dmg`.
+- **Platform:** macOS 26.0+, Swift 6.2 with strict concurrency. Uses the `XPC` framework module directly (not the old C `xpc_*` API).
+- **No blanket Foundation imports.** Use atomic imports (`import struct Foundation.Data`, `import class Foundation.JSONEncoder`). `Darwin.C` provides C stdlib (`fputs`, `stderr`, `pid_t`, `sleep`, `getuid`). `Dispatch` is its own module, not part of Foundation.
+- **`Synchronization.Mutex` is non-copyable.** Cannot assign to a local variable or capture by value. Access through `self` when capturing in closures, or capture the owning object.
+- **Thread safety:** All mutable shared state is guarded by `Mutex`. Classes use `@unchecked Sendable` when Mutex provides the safety guarantee. Use `nonisolated(unsafe) var` when synchronization is handled externally (e.g., semaphores in tests).
 
-## Current Blocker: mcpbridge Subprocess Issue
+## Current Blocker: mcpbridge from xcmcptapd
 
-mcpbridge fails with `DecodeError Code=1` ("could not parse raw message") when spawned from `xcmcptapd` with concurrent I/O. The **only** working pattern from xcmcptapd is synchronous write+read on the main thread with no other threads — which is unusable for a real service.
+mcpbridge fails with `DecodeError Code=1` ("could not parse raw message") when spawned from `xcmcptapd` with concurrent I/O. This happens with Foundation.Process, raw posix_spawn, and swift-subprocess — the subprocess library doesn't matter.
 
-**What works:** mcpbridge from terminal, from `launchctl submit`, from test runner (both Foundation.Process and Subprocess), from xcmcptapd with synchronous single-threaded I/O.
+**What works:** mcpbridge from terminal, from `launchctl submit`, from the test runner, from xcmcptapd with synchronous single-threaded I/O (unusable for a real service).
 
-**What fails:** mcpbridge from xcmcptapd with ANY background thread reading stdout. Every combination of Foundation.Process, raw posix_spawn, Subprocess, POSIX_SPAWN_CLOEXEC_DEFAULT, clean environment, delays — all fail.
+**What fails:** mcpbridge from xcmcptapd with ANY concurrent stdout reader. The error correlates with our write arriving at mcpbridge. The data is valid JSON (verified with `xxd` via `tee` wrapper). Adding a stdout read task — even on a completely different fd — triggers the failure.
 
-**Key clue:** The error correlates with our write arriving at mcpbridge. The data is valid JSON (verified with `xxd` via `tee` wrapper). Adding a stdout read thread (even a `Thread.detachNewThread` doing blocking `read()`) causes the failure, even though the read is on a completely different fd than stdin.
-
-All existing proxy projects (XcodeMCPKit, XCodeMCPService, xcodecli) successfully spawn mcpbridge from their daemon processes using Foundation.Process + Pipe. Their code is structurally similar to ours. Need to investigate what they're doing differently — could be related to using HTTP/NWListener instead of XPC, or subtle differences in process setup.
+All existing proxy projects (XcodeMCPKit, XCodeMCPService, xcodecli) spawn mcpbridge from their daemons using Foundation.Process + Pipe. Their code is structurally similar. Need to investigate what they do differently — likely related to using HTTP/NWListener instead of XPC, or differences in launchd service configuration.
