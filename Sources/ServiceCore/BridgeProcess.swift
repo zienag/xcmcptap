@@ -1,3 +1,4 @@
+import protocol Foundation.DataProtocol
 import Darwin.C
 import Subprocess
 import Synchronization
@@ -6,44 +7,31 @@ import System
 public final class BridgeProcess: Sendable {
   private let executablePath: String
   private let executableArgs: [String]
-  private let inputStream: AsyncStream<[UInt8]>
-  private let inputContinuation: AsyncStream<[UInt8]>.Continuation
-  private let _processID = Mutex<pid_t>(0)
+
+  public let messages: AsyncStream<[UInt8]>
+  private let messagesContinuation: AsyncStream<[UInt8]>.Continuation
+
+  private let writerLatch = Mutex(WriterLatch())
+  private let _execution = Mutex<Execution?>(nil)
   private let _task = Mutex<Task<Void, Never>?>(nil)
-  private let callbacks = Mutex(Callbacks())
 
-  private struct Callbacks: Sendable {
-    var onOutput: (@Sendable (String) -> Void)?
-    var onExit: (@Sendable () -> Void)?
-  }
-
-  public var onOutput: (@Sendable (String) -> Void)? {
-    get { callbacks.withLock { $0.onOutput } }
-    set { callbacks.withLock { $0.onOutput = newValue } }
-  }
-
-  public var onExit: (@Sendable () -> Void)? {
-    get { callbacks.withLock { $0.onExit } }
-    set { callbacks.withLock { $0.onExit = newValue } }
+  private struct WriterLatch: Sendable {
+    var writer: StandardInputWriter?
+    var waiters: [CheckedContinuation<StandardInputWriter, any Error>] = []
   }
 
   public var processID: pid_t {
-    _processID.withLock { $0 }
+    _execution.withLock { $0?.processIdentifier.value ?? 0 }
   }
 
   public init(executable: String = "/usr/bin/xcrun", arguments: [String] = ["mcpbridge"]) {
     self.executablePath = executable
     self.executableArgs = arguments
-    let (stream, continuation) = AsyncStream<[UInt8]>.makeStream()
-    self.inputStream = stream
-    self.inputContinuation = continuation
+    (self.messages, self.messagesContinuation) = AsyncStream.makeStream()
   }
 
   public func start() {
-    let cbs = callbacks.withLock { $0 }
-    let onOutput = cbs.onOutput
-    let onExit = cbs.onExit
-    let inputStream = inputStream
+    let messagesCont = self.messagesContinuation
 
     let task = Task.detached { [self] in
       do {
@@ -53,43 +41,89 @@ public final class BridgeProcess: Sendable {
           error: .discarded,
           preferredBufferSize: 1
         ) { execution, inputWriter, outputSequence in
-          self._processID.withLock { $0 = execution.processIdentifier.value }
+          self._execution.withLock { $0 = execution }
+          self.signalWriter(inputWriter)
 
-          try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
-              for await bytes in inputStream {
-                _ = try await inputWriter.write(bytes)
-              }
-              try await inputWriter.finish()
-            }
-
-            group.addTask {
-              for try await line in outputSequence.lines() {
-                if !line.isEmpty {
-                  onOutput?(line)
+          var current: [UInt8] = []
+          for try await buffer in outputSequence {
+            buffer.withUnsafeBytes { raw in
+              for byte in raw.bindMemory(to: UInt8.self) {
+                if byte == 0x0A {
+                  messagesCont.yield(current)
+                  current = []
+                } else {
+                  current.append(byte)
                 }
               }
             }
-
-            try await group.waitForAll()
+          }
+          if !current.isEmpty {
+            messagesCont.yield(current)
           }
         }
       } catch {
         fputs("Bridge error: \(error)\n", stderr)
+        self.failWaiters(with: error)
       }
-      onExit?()
+      messagesCont.finish()
     }
     _task.withLock { $0 = task }
   }
 
-  public func write(_ bytes: some Sequence<UInt8>) {
+  public func write(_ bytes: some DataProtocol) async throws {
+    let writer = try await awaitWriter()
+    // Must be a single write: the actor serializes individual writes, but
+    // splitting data and newline into two writes allows other concurrent
+    // writers to interleave bytes between the payload and its terminator.
     var payload = Array(bytes)
     payload.append(0x0A)
-    inputContinuation.yield(payload)
+    _ = try await writer.write(payload)
   }
 
   public func terminate() {
-    inputContinuation.finish()
+    if let execution = _execution.withLock({ $0 }) {
+      try? execution.send(signal: .terminate)
+    }
     _task.withLock { $0?.cancel() }
+  }
+
+  // MARK: - Private
+
+  private func awaitWriter() async throws -> StandardInputWriter {
+    try await withCheckedThrowingContinuation { cont in
+      let resolved: StandardInputWriter? = writerLatch.withLock { latch in
+        if let w = latch.writer {
+          return w
+        }
+        latch.waiters.append(cont)
+        return nil
+      }
+      if let resolved {
+        cont.resume(returning: resolved)
+      }
+    }
+  }
+
+  private func signalWriter(_ writer: StandardInputWriter) {
+    let waiters = writerLatch.withLock { latch -> [CheckedContinuation<StandardInputWriter, any Error>] in
+      latch.writer = writer
+      let w = latch.waiters
+      latch.waiters = []
+      return w
+    }
+    for waiter in waiters {
+      waiter.resume(returning: writer)
+    }
+  }
+
+  private func failWaiters(with error: any Error) {
+    let waiters = writerLatch.withLock { latch -> [CheckedContinuation<StandardInputWriter, any Error>] in
+      let w = latch.waiters
+      latch.waiters = []
+      return w
+    }
+    for waiter in waiters {
+      waiter.resume(throwing: error)
+    }
   }
 }

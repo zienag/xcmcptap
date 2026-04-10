@@ -7,6 +7,7 @@ import Dispatch
 import Subprocess
 import System
 import Testing
+import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct SubprocessRoundTripTests {
@@ -19,7 +20,7 @@ struct SubprocessRoundTripTests {
       .path
   }()
 
-  static let initRequest = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
+  static let initRequest = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
 
   // Test 1: Foundation Process + Pipe baseline (known working approach)
   @Test func foundationProcessRoundTrip() throws {
@@ -81,7 +82,7 @@ struct SubprocessRoundTripTests {
   // Test: mcpbridge via Foundation.Process (interactive, stdin stays open)
   @Test(.timeLimit(.minutes(1)))
   func mcpbridgeFoundationProcess() async throws {
-    let initRequest = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
+    let initRequest = Self.initRequest
 
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
@@ -114,7 +115,7 @@ struct SubprocessRoundTripTests {
   // Test: mcpbridge via Foundation.Process from a DispatchQueue (simulates dispatchMain context)
   @Test(.timeLimit(.minutes(1)))
   func mcpbridgeFromDispatchQueue() async throws {
-    let initRequest = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
+    let initRequest = Self.initRequest
 
     // Simulate what happens in xcmcptapd: the XPC listener accept handler
     // runs on a dispatch queue, creates Process, writes to it
@@ -153,7 +154,7 @@ struct SubprocessRoundTripTests {
 
   // Test: mcpbridge via Subprocess (same as Test 3 but with real mcpbridge)
   @Test func mcpbridgeViaSubprocess() async throws {
-    let initRequest = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
+    let initRequest = Self.initRequest
 
     let result: String? = try await run(
       .path(FilePath("/usr/bin/xcrun")),

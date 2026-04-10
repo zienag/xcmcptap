@@ -1,3 +1,9 @@
+public enum MCPProtocol {
+  /// MCP protocol version this proxy implements. Must match what the
+  /// installed `mcpbridge` expects.
+  public static let version = "2025-11-25"
+}
+
 public struct RPCEnvelope: Codable, Sendable, Equatable {
   public var id: JSONValue?
   public var method: String?

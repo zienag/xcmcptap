@@ -16,7 +16,8 @@ struct XcodeMCPTapService {
     // mcpbridge cannot be spawned from XPC accept handlers — it fails
     // with a decode error when launched in that context.
     let bridge = BridgeProcess()
-    let router = MCPRouter(bridge: bridge)
+    let connection = MCPConnection(bridge: bridge)
+    let router = MCPRouter(connection: connection)
 
     router.onToolsDiscovered = { tools in
       registry.updateTools(tools)
@@ -27,10 +28,6 @@ struct XcodeMCPTapService {
 
     // Wait for the init handshake to complete before accepting connections
     sleep(2)
-
-    bridge.onExit = {
-      fputs("[service] bridge process exited\n", stderr)
-    }
 
     let listener = try! XPCListener(
       service: MCPTap.serviceName

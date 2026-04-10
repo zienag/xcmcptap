@@ -1,106 +1,26 @@
 import class Foundation.JSONDecoder
 import struct Foundation.Data
 import struct Foundation.Decimal
-import System
 import Testing
 import XcodeMCPTapServiceCore
 import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct MCPProxyTests {
-  static let fakeMCPServer: String = {
-    var path = FilePath(#filePath)
-    path.removeLastComponent()
-    path.removeLastComponent()
-    path.removeLastComponent()
-    path.append("fake-mcp-server.py")
-    return path.string
-  }()
+  static let fakeMCPServer = FakeMCPServer.path()
 
-  func makeBridge() -> BridgeProcess {
-    BridgeProcess(
-      executable: "/usr/bin/python3",
-      arguments: ["-u", Self.fakeMCPServer]
-    )
-  }
-
-  /// Collects async responses from the router via AsyncStream.
-  final class ResponseCollector: Sendable {
-    let stream: AsyncStream<String>
-    let continuation: AsyncStream<String>.Continuation
-
-    init() {
-      (stream, continuation) = AsyncStream.makeStream()
-    }
-
-    func nextResponse(timeout: Duration = .seconds(5)) async throws -> String {
-      try await withThrowingTaskGroup(of: String?.self) { group in
-        group.addTask {
-          for await line in self.stream { return line }
-          return nil
-        }
-        group.addTask {
-          try await Task.sleep(for: timeout)
-          return nil
-        }
-        guard let result = try await group.next(), let line = result else {
-          group.cancelAll()
-          throw TimeoutError()
-        }
-        group.cancelAll()
-        return line
-      }
-    }
-
-    func collect(count: Int, timeout: Duration = .seconds(5)) async throws -> [String] {
-      try await withThrowingTaskGroup(of: [String].self) { group in
-        group.addTask {
-          var lines: [String] = []
-          for await line in self.stream {
-            lines.append(line)
-            if lines.count >= count { break }
-          }
-          return lines
-        }
-        group.addTask {
-          try await Task.sleep(for: timeout)
-          return []
-        }
-        guard let result = try await group.next(), !result.isEmpty else {
-          group.cancelAll()
-          throw TimeoutError()
-        }
-        group.cancelAll()
-        return result
-      }
-    }
-  }
-
-  struct TimeoutError: Error {}
-
-  private func decode(_ string: String) throws -> RPCEnvelope {
-    try JSONDecoder().decode(RPCEnvelope.self, from: Data(string.utf8))
+  private func makeHarness() -> RouterHarness {
+    .fake(server: Self.fakeMCPServer)
   }
 
   // MARK: - Tests
 
   @Test func initializeHandshake() async throws {
-    let bridge = makeBridge()
-    let router = MCPRouter(bridge: bridge)
-    let collector = ResponseCollector()
+    let h = makeHarness()
+    defer { h.terminate() }
 
-    router.sendToClient = { collector.continuation.yield($0) }
-    router.start()
+    let envelope = try await h.handshake(id: 42)
 
-    // Send client initialize
-    router.handleClientMessage(
-      #"{"jsonrpc":"2.0","id":42,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
-    )
-
-    let response = try await collector.nextResponse()
-    let envelope = try decode(response)
-
-    // Should have the client's id, not proxy-init
     #expect(envelope.id == 42)
     #expect(envelope.rest["jsonrpc"] == "2.0")
 
@@ -114,32 +34,18 @@ struct MCPProxyTests {
       return
     }
     #expect(serverInfo["name"] == "fake-mcp-server")
-    #expect(resultDict["protocolVersion"] == "2024-11-05")
-
-    bridge.terminate()
+    #expect(resultDict["protocolVersion"] == .string(MCPProtocol.version))
   }
 
   @Test func toolsList() async throws {
-    let bridge = makeBridge()
-    let router = MCPRouter(bridge: bridge)
-    let collector = ResponseCollector()
+    let h = makeHarness()
+    defer { h.terminate() }
 
-    router.sendToClient = { collector.continuation.yield($0) }
-    router.start()
+    _ = try await h.handshake()
+    h.sendInitialized()
+    h.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
 
-    // Handshake
-    router.handleClientMessage(
-      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
-    )
-    _ = try await collector.nextResponse()
-    router.handleClientMessage(#"{"jsonrpc":"2.0","method":"initialized"}"#)
-
-    // List tools
-    router.handleClientMessage(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
-
-    let response = try await collector.nextResponse()
-    let envelope = try decode(response)
-
+    let envelope = try await h.nextResponse()
     #expect(envelope.id == 2)
     guard case .object(let result)? = envelope.rest["result"],
           case .array(let tools)? = result["tools"] else {
@@ -152,33 +58,19 @@ struct MCPProxyTests {
     }
     #expect(toolNames.contains("echo"))
     #expect(toolNames.contains("greet"))
-
-    bridge.terminate()
   }
 
   @Test func toolsCall() async throws {
-    let bridge = makeBridge()
-    let router = MCPRouter(bridge: bridge)
-    let collector = ResponseCollector()
+    let h = makeHarness()
+    defer { h.terminate() }
 
-    router.sendToClient = { collector.continuation.yield($0) }
-    router.start()
-
-    // Handshake
-    router.handleClientMessage(
-      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
-    )
-    _ = try await collector.nextResponse()
-    router.handleClientMessage(#"{"jsonrpc":"2.0","method":"initialized"}"#)
-
-    // Call echo tool
-    router.handleClientMessage(
+    _ = try await h.handshake()
+    h.sendInitialized()
+    h.send(
       #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"echo","arguments":{"message":"hello world"}}}"#
     )
 
-    let response = try await collector.nextResponse()
-    let envelope = try decode(response)
-
+    let envelope = try await h.nextResponse()
     #expect(envelope.id == 3)
     guard case .object(let result)? = envelope.rest["result"],
           case .array(let content)? = result["content"],
@@ -187,75 +79,49 @@ struct MCPProxyTests {
       Issue.record("Expected result.content[0].text")
       return
     }
-    let echoed = try decode(text)
+    let echoed = try JSONDecoder().decode(RPCEnvelope.self, from: Data(text.utf8))
     #expect(echoed.rest["tool"] == "echo")
     guard case .object(let args)? = echoed.rest["arguments"] else {
       Issue.record("Expected arguments object")
       return
     }
     #expect(args["message"] == "hello world")
-
-    bridge.terminate()
   }
 
   @Test func multipleSequentialMessages() async throws {
-    let bridge = makeBridge()
-    let router = MCPRouter(bridge: bridge)
-    let collector = ResponseCollector()
+    let h = makeHarness()
+    defer { h.terminate() }
 
-    router.sendToClient = { collector.continuation.yield($0) }
-    router.start()
+    _ = try await h.handshake()
+    h.sendInitialized()
 
-    // Handshake
-    router.handleClientMessage(
-      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
-    )
-    _ = try await collector.nextResponse()
-    router.handleClientMessage(#"{"jsonrpc":"2.0","method":"initialized"}"#)
-
-    // Send 5 tool calls
     for i in 10 ..< 15 {
-      router.handleClientMessage(
+      h.send(
         #"{"jsonrpc":"2.0","id":\#(i),"method":"tools/call","params":{"name":"echo","arguments":{"index":\#(i)}}}"#
       )
     }
 
-    let responses = try await collector.collect(count: 5)
-    #expect(responses.count == 5)
+    let envelopes = try await h.collect(count: 5)
+    #expect(envelopes.count == 5)
 
-    let ids = try responses.map { try decode($0).id }
+    let ids = envelopes.map { $0.id }
     for i in 10 ..< 15 {
       #expect(ids.contains(JSONValue.number(Decimal(i))))
     }
-
-    bridge.terminate()
   }
 
   @Test func messagesBufferedDuringInit() async throws {
-    let bridge = makeBridge()
-    let router = MCPRouter(bridge: bridge)
-    let collector = ResponseCollector()
-
-    router.sendToClient = { collector.continuation.yield($0) }
-    router.start()
+    let h = makeHarness()
+    defer { h.terminate() }
 
     // Send initialize AND tools/list immediately, before bridge can respond
-    router.handleClientMessage(
-      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
-    )
-    router.handleClientMessage(#"{"jsonrpc":"2.0","method":"initialized"}"#)
-    router.handleClientMessage(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
+    h.sendInitialize(id: 1)
+    h.sendInitialized()
+    h.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
 
-    // Should get both responses: initialize (from cache) + tools/list (from bridge)
-    let responses = try await collector.collect(count: 2)
-    #expect(responses.count == 2)
-
-    let first = try decode(responses[0])
-    #expect(first.id == 1)
-
-    let second = try decode(responses[1])
-    #expect(second.id == 2)
-
-    bridge.terminate()
+    let envelopes = try await h.collect(count: 2)
+    #expect(envelopes.count == 2)
+    #expect(envelopes[0].id == 1)
+    #expect(envelopes[1].id == 2)
   }
 }

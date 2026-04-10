@@ -15,7 +15,7 @@ def handle(req):
             "jsonrpc": "2.0",
             "id": rid,
             "result": {
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": "2025-11-25",
                 "capabilities": {"tools": {"listChanged": False}},
                 "serverInfo": {"name": "fake-mcp-server", "version": "1.0.0"},
             },
