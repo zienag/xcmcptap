@@ -25,7 +25,7 @@ final class RouterHarness {
     router.start()
   }
 
-  static func fake(server path: String) -> RouterHarness {
+  static func mock(bridge path: String) -> RouterHarness {
     RouterHarness(exec: "/usr/bin/python3", "-u", path)
   }
 
@@ -76,12 +76,6 @@ enum TestScripts {
     p.removeLastComponent()
     p.append(name)
     return p.string
-  }
-}
-
-enum FakeMCPServer {
-  static func path(from file: StaticString = #filePath) -> String {
-    TestScripts.path("fake-mcp-server.py", from: file)
   }
 }
 

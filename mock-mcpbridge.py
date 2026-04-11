@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Fake mcpbridge over stdio.
+"""Mock mcpbridge over stdio — the one and only test fixture.
 
 Mimics `xcrun mcpbridge`'s observed wire behavior closely enough that tests
 can exercise the full MCP handshake without requiring Xcode to be installed
 or the per-launch Xcode permission dialog to be dismissed.
 
-Key differences from the permissive fake-mcp-server.py:
+Behavior pinned to real mcpbridge:
 
 - Strictly requires `notifications/initialized` (spec-compliant name) before
   answering tools/list or tools/call. Requests received before a valid
@@ -16,8 +16,12 @@ Key differences from the permissive fake-mcp-server.py:
 - Returns the exact shape real mcpbridge returned when probed manually:
   protocolVersion=2025-06-18, serverInfo.name=xcode-tools,
   capabilities.tools.listChanged=True, and an instructions field.
-- Exposes a small set of Xcode-shaped tools with inputSchemas so callers
-  that want to verify `tools/list` parsing have realistic data.
+- Exposes a small set of Xcode-shaped tools with realistic inputSchemas.
+- `XcodeListWindows` returns the exact response shape Claude Code observed
+  in production: `content[0].text` carries a JSON-encoded projection and
+  `structuredContent` carries typed data matching the outputSchema.
+- Unknown-tool `tools/call` falls back to an echo of `{tool, arguments}`
+  for parameterized tests that don't need a realistic payload.
 """
 
 import json
@@ -31,6 +35,15 @@ INIT_RESULT = {
     "instructions": "Request Xcode perform the action you specify.",
     "serverInfo": {"name": "xcode-tools", "version": "24582"},
 }
+
+
+# Canned XcodeListWindows output captured from real mcpbridge when both the
+# multivibe workspace and the xcmcptap project were open. Pinned verbatim so
+# tests can assert on the exact wire shape Claude Code receives.
+XCODE_LIST_WINDOWS_MESSAGE = (
+    "* tabIdentifier: windowtab2, workspacePath: /Users/alfred/dev/multivibe/Multivibe.xcworkspace\n"
+    "* tabIdentifier: windowtab1, workspacePath: /Users/alfred/dev/xcmcptap/XcodeMCPTap.xcodeproj\n"
+)
 
 
 TOOLS = [
@@ -77,7 +90,40 @@ TOOLS = [
             "required": ["tabIdentifier", "path"],
         },
     },
+    {
+        "name": "XcodeListWindows",
+        "description": "Lists the current Xcode windows and their workspace information",
+        "inputSchema": {"type": "object", "properties": {}, "required": []},
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "Description of all open Xcode windows",
+                }
+            },
+            "required": ["message"],
+        },
+        "title": "List Windows",
+    },
 ]
+
+
+# Canned tools/call responses keyed by tool name. The wire shape mirrors
+# what real mcpbridge returned: `content[0].text` carries a JSON-encoded
+# projection, and `structuredContent` carries the same data in typed form
+# matching the tool's outputSchema.
+TOOL_RESPONSES = {
+    "XcodeListWindows": {
+        "content": [
+            {
+                "type": "text",
+                "text": json.dumps({"message": XCODE_LIST_WINDOWS_MESSAGE}),
+            }
+        ],
+        "structuredContent": {"message": XCODE_LIST_WINDOWS_MESSAGE},
+    },
+}
 
 
 class State:
@@ -87,7 +133,7 @@ class State:
 
 
 def log(msg):
-    sys.stderr.write(f"[fake-mcpbridge] {msg}\n")
+    sys.stderr.write(f"[mock-mcpbridge] {msg}\n")
     sys.stderr.flush()
 
 
@@ -119,6 +165,8 @@ def handle(req, state):
         params = req.get("params", {})
         tool_name = params.get("name", "unknown")
         arguments = params.get("arguments", {})
+        if tool_name in TOOL_RESPONSES:
+            return {"jsonrpc": "2.0", "id": rid, "result": TOOL_RESPONSES[tool_name]}
         return {
             "jsonrpc": "2.0",
             "id": rid,

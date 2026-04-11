@@ -11,12 +11,12 @@ import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct SubprocessRoundTripTests {
-  static let fakeMCPServer: String = {
+  static let mockBridge: String = {
     URL(fileURLWithPath: #filePath)
       .deletingLastPathComponent()
       .deletingLastPathComponent()
       .deletingLastPathComponent()
-      .appendingPathComponent("fake-mcp-server.py")
+      .appendingPathComponent("mock-mcpbridge.py")
       .path
   }()
 
@@ -26,7 +26,7 @@ struct SubprocessRoundTripTests {
   @Test func foundationProcessRoundTrip() throws {
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-    proc.arguments = ["-u", Self.fakeMCPServer]
+    proc.arguments = ["-u", Self.mockBridge]
 
     let stdinPipe = Pipe()
     let stdoutPipe = Pipe()
@@ -44,7 +44,7 @@ struct SubprocessRoundTripTests {
     let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
     let output = String(data: outputData, encoding: .utf8) ?? ""
 
-    #expect(output.contains("fake-mcp-server"), "Foundation Process round-trip works")
+    #expect(output.contains("xcode-tools"), "Foundation Process round-trip works")
   }
 
   // Test 2: Foundation Process + Pipe WITHOUT closing stdin (interactive, like the real bridge)
@@ -52,7 +52,7 @@ struct SubprocessRoundTripTests {
   func foundationProcessInteractive() async throws {
     let proc = Process()
     proc.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-    proc.arguments = ["-u", Self.fakeMCPServer]
+    proc.arguments = ["-u", Self.mockBridge]
 
     let stdinPipe = Pipe()
     let stdoutPipe = Pipe()
@@ -76,7 +76,7 @@ struct SubprocessRoundTripTests {
       }
     }
 
-    #expect(output.contains("fake-mcp-server"), "Should get response without closing stdin")
+    #expect(output.contains("xcode-tools"), "Should get response without closing stdin")
   }
 
   // Test: mcpbridge via Foundation.Process (interactive, stdin stays open)
@@ -201,7 +201,7 @@ struct SubprocessRoundTripTests {
   @Test func subprocessThreeParamWithSmallBuffer() async throws {
     let result: String? = try await run(
       .path(FilePath("/usr/bin/python3")),
-      arguments: ["-u", Self.fakeMCPServer],
+      arguments: ["-u", Self.mockBridge],
       error: .discarded,
       preferredBufferSize: 1
     ) { execution, inputWriter, outputSequence in
@@ -229,7 +229,7 @@ struct SubprocessRoundTripTests {
     }.value
 
     #expect(result != nil, "preferredBufferSize: 1 should deliver stdout immediately")
-    #expect(result?.contains("fake-mcp-server") == true)
+    #expect(result?.contains("xcode-tools") == true)
   }
 
   // Test 4: Subprocess 2-param closure with one-shot input — the README way
@@ -239,7 +239,7 @@ struct SubprocessRoundTripTests {
 
     _ = try await run(
       .path(FilePath("/usr/bin/python3")),
-      arguments: ["-u", Self.fakeMCPServer],
+      arguments: ["-u", Self.mockBridge],
       input: .data(inputData),
       error: .discarded
     ) { execution, outputSequence in
@@ -264,7 +264,7 @@ struct SubprocessRoundTripTests {
 
     #expect(!receivedLines.isEmpty, "2-param API should deliver stdout")
     if let first = receivedLines.first {
-      #expect(first.contains("fake-mcp-server"), "Response should contain server name")
+      #expect(first.contains("xcode-tools"), "Response should contain server name")
     }
   }
 

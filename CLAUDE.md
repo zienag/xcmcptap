@@ -69,9 +69,9 @@ The `.xcodeproj` is gitignored — `project.yml` is the source of truth. `instal
 
 All tests live in the `XPCTests` SPM test target (`Tests/XPCTests/`):
 
-- **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `fake-mcp-server.py` and real mcpbridge. No LaunchAgent needed.
+- **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
 - **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
-- **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `fake-mcp-server.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init.
+- **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
 - **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
 
 **XPC session lifecycle:** `XPCSession` must be cancelled via `session.cancel(reason:)` before deallocation — otherwise it crashes with `_xpc_api_misuse`. Always use `defer { session.cancel(reason:) }`.
