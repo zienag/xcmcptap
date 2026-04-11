@@ -10,7 +10,7 @@ TEAM_ID="GU3RT64VWG"
 NOTARIZE=${NOTARIZE:-true}
 BUILD_DIR="$SCRIPT_DIR/.build/Release"
 
-SERVICE_NAME="dev.multivibe.xcmcptap"
+SERVICE_NAME="alfred.xcmcptap"
 PLIST_PATH="$HOME/Library/LaunchAgents/${SERVICE_NAME}.plist"
 CLIENT_LINK="$HOME/.local/bin/xcmcptap"
 

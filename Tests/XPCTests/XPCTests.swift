@@ -5,7 +5,7 @@ import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct XPCIntegrationTests {
-  static let serviceName = "dev.multivibe.xcmcptap.test-echo"
+  static let serviceName = "alfred.xcmcptap.test-echo"
 
   init() throws {
     try Self.ensureEchoServerRunning()

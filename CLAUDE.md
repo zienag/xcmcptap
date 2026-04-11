@@ -30,7 +30,7 @@ Several projects on GitHub solve this same problem. Key reference implementation
 - **Integer IDs:** mcpbridge may only support integer JSON-RPC IDs, not string UUIDs (XCodeMCPService implements an ID mapper for this)
 - **Two authorization layers:**
   1. **Xcode agent dialog** — per-mcpbridge-launch, in-memory only, no persistent "allow"
-  2. **macOS TCC Automation** — only for tools that send Apple Events (BuildProject, RunSomeTests, RenderPreview, ExecuteSnippet). Keyed by client binary's code signing identifier. A proper bundle ID (`dev.multivibe.xcmcptap`) can persist TCC entries, unlike bare CLI tools.
+  2. **macOS TCC Automation** — only for tools that send Apple Events (BuildProject, RunSomeTests, RenderPreview, ExecuteSnippet). Keyed by client binary's code signing identifier. A proper bundle ID (`alfred.xcmcptap`) can persist TCC entries, unlike bare CLI tools.
 - **Protocol version:** Must match what mcpbridge expects. Use `"2025-11-25"` for Xcode 26.3.
 
 ## Build, Test & Install
@@ -67,12 +67,12 @@ The `.xcodeproj` is gitignored — `project.yml` is the source of truth. `instal
 
 ### Testing
 
-There are two test suites:
+All tests live in the `XPCTests` SPM test target (`Tests/XPCTests/`):
 
 - **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `fake-mcp-server.py` and real mcpbridge. No LaunchAgent needed.
+- **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
 - **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `fake-mcp-server.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init.
-
-The **XPC echo tests** (`XPCTests`) require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `dev.multivibe.xcmcptap.test-echo`).
+- **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
 
 **XPC session lifecycle:** `XPCSession` must be cancelled via `session.cancel(reason:)` before deallocation — otherwise it crashes with `_xpc_api_misuse`. Always use `defer { session.cancel(reason:) }`.
 
@@ -95,23 +95,31 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 
 ### Targets
 
-Defined in both `project.yml` (Xcode project) and `Package.swift` (SPM):
+**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries only, no executables, no exclusions. `App/` is 100% Xcode — the app bundle and the two thin `@main` wrappers for the tool targets.
 
-- **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing). Static library, all other targets depend on it.
-- **XcodeMCPTapServiceCore** (`Sources/ServiceCore/`) — Reusable service logic: `BridgeProcess`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`. Library target used by both `xcmcptapd` and tests.
-- **XcodeMCPTap** (`App/`) — macOS Application target with menu bar UI. Uses `ServiceInstaller` for install/uninstall, `StatusViewModel` for monitoring. Embeds `xcmcptapd` and `xcmcptap` in `Contents/MacOS/` via Copy Files build phase.
-- **xcmcptapd** (`Sources/Service/`) — XPC listener daemon entry point. Imports `XcodeMCPTapServiceCore`. Spawns a single shared `BridgeProcess` wrapping `/usr/bin/xcrun mcpbridge`. Routes all client messages via `MCPRouter`.
-- **xcmcptap** (`Sources/Client/`) — Command-line tool bundled in the .app. Reads stdin → sends as XPC messages. Receives XPC messages → prints to stdout.
+**SPM libraries** (`Package.swift`, all under `Sources/`):
+
+- **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing). Used by every other target.
+- **XcodeMCPTapClient** (`Sources/Client/`) — Client logic: XPC session, stdin reader, stdout writer. Exposes `public enum ClientMain { public static func run() }`.
+- **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, plus `public enum ServiceMain { public static func run() }`. Imported by tests.
 - **xpc-test-echo-server** (`Sources/TestEchoServer/`) — Test helper that echoes `MCPLine` messages back with "echo:" prefix.
-- **XPCTests** (`Tests/XPCTests/`) — Integration tests using Swift Testing. Includes XPC echo tests, Subprocess round-trip tests, and MCP proxy tests.
+- **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, Subprocess round-trip tests, MCP proxy tests.
+
+**Xcode targets** (`project.yml`, all under `App/`):
+
+- **XcodeMCPTap** (`App/` except the `xcmcptap`/`xcmcptapd` subdirs) — macOS Application target. Uses `ServiceInstaller` for install/uninstall and `StatusViewModel` for the status window. Embeds `xcmcptapd` and `xcmcptap` in `Contents/MacOS/` via Copy Files. The app target's `sources` excludes the `xcmcptap`/`xcmcptapd` subdirs so they belong exclusively to their own tool targets.
+- **xcmcptap** (`App/xcmcptap/Xcmcptap.swift`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapClient; ClientMain.run()`.
+- **xcmcptapd** (`App/xcmcptapd/Xcmcptapd.swift`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapService; ServiceMain.run()`.
+
+**Why the tool targets are Xcode-native (not SPM executables):** SPM-built executables get `com.apple.security.get-task-allow` injected into their entitlements in Release builds, and `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` at the xcodebuild level does not propagate to SPM products. That entitlement fails notarization. Xcode-native tool targets respect the setting cleanly, so `project.yml` sets `CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO` at the project level and `OTHER_CODE_SIGN_FLAGS: --timestamp` in the Release config. No post-build re-signing hacks needed.
 
 ### Key design details
 
 - **Subprocess I/O:** `BridgeProcess` uses [swift-subprocess](https://github.com/swiftlang/swift-subprocess) (not Foundation.Process). An `AsyncStream<[UInt8]>` bridges the synchronous `write()` calls (from XPC handlers) to the async `StandardInputWriter` inside the `run()` closure. `preferredBufferSize: 1` is required — larger buffers cause DispatchIO to hold back interactive output. `outputSequence.lines()` reads stdout line-by-line (strips newlines).
 - **MCP init caching:** `MCPRouter` pre-initializes the bridge (sends `initialize` + `initialized` + `tools/list`), caches the init response, and replays it to each client. Messages arriving before init completes are buffered in `pendingClientMessages`.
 - **Single bridge, many clients:** The service creates ONE shared `BridgeProcess` at startup and multiplexes all XPC connections through it.
-- **Build & distribute:** `install.sh` builds via `xcodebuild`, signs with Developer ID, notarizes, and optionally creates a `.dmg`.
 - **Platform:** macOS 26.0+, Swift 6.2 with strict concurrency. Uses the `XPC` framework module directly (not the old C `xpc_*` API).
+- **Entry points use `@main`, never top-level code.** `@main` goes on a type with `static func main()`. Files containing `@main` must not be named `main.swift` — that filename triggers Swift's script mode and forbids `@main`.
 - **No blanket Foundation imports.** Use atomic imports (`import struct Foundation.Data`, `import class Foundation.JSONEncoder`). `Darwin.C` provides C stdlib (`fputs`, `stderr`, `pid_t`, `sleep`, `getuid`). `Dispatch` is its own module, not part of Foundation.
 - **`Synchronization.Mutex` is non-copyable.** Cannot assign to a local variable or capture by value. Access through `self` when capturing in closures, or capture the owning object.
 - **Thread safety:** All mutable shared state is guarded by `Mutex`. Classes use `@unchecked Sendable` when Mutex provides the safety guarantee. Use `nonisolated(unsafe) var` when synchronization is handled externally (e.g., semaphores in tests).

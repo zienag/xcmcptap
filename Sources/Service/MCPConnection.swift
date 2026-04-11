@@ -4,30 +4,81 @@ import class Foundation.NSDecimalNumber
 import protocol Foundation.DataProtocol
 import struct Foundation.Data
 import struct Foundation.Decimal
+import Darwin.C
 import XcodeMCPTapShared
 
-/// Thin JSON-RPC layer on top of a byte transport.
+/// Thin JSON-RPC layer over a subprocess transport.
 ///
-/// Handles request/response correlation for messages this connection
-/// originates (via `request`), while leaving everything else opaque on the
-/// `passthrough` stream. Reserved IDs for internal requests are negative;
-/// clients are expected to use positive IDs.
+/// Owns the subprocess end-to-end: construct with an executable and
+/// arguments, call `start()` to kick off the supervising task and read
+/// loop, then use `request`/`notify`/`forward`/`passthrough`. Call
+/// `terminate()` to close stdin (well-behaved subprocesses exit) and
+/// cancel the supervising task.
+///
+/// Reserved IDs for requests issued via `request(method:params:)` are
+/// negative; clients forwarding through `forward` are expected to use
+/// positive IDs.
 public actor MCPConnection {
-  private let bridge: BridgeProcess
+  private let exec: String
+  private let args: [String]
+
+  /// Writes to the subprocess's stdin.
+  private let writes: AsyncStream<[UInt8]>.Continuation
+  /// Reads from the subprocess's stdout (one line per element).
+  private let reads: AsyncStream<[UInt8]>
+  /// One-shot pid stream.
+  private let pidStream: AsyncStream<pid_t>
+  private var bridgeTask: Task<Void, Never>?
+
   private var pending: [Int: CheckedContinuation<RPCEnvelope, any Error>] = [:]
   private var nextReservedID = -1
   private let passthroughContinuation: AsyncStream<[UInt8]>.Continuation
+  private var _processID: pid_t = 0
 
   public nonisolated let passthrough: AsyncStream<[UInt8]>
 
-  public init(bridge: BridgeProcess) {
-    self.bridge = bridge
-    (self.passthrough, self.passthroughContinuation) = AsyncStream.makeStream()
+  public init(exec: String, _ args: String...) {
+    self.init(exec: exec, args: args)
   }
 
+  public init(exec: String, args: [String]) {
+    self.exec = exec
+    self.args = args
+    // Internal channels shared between the owning bridge task and this actor.
+    let (writeStream, writeCont) = AsyncStream<[UInt8]>.makeStream()
+    let (readStream, readCont) = AsyncStream<[UInt8]>.makeStream()
+    let (pidStream, pidCont) = AsyncStream<pid_t>.makeStream()
+    self.writes = writeCont
+    self.reads = readStream
+    self.pidStream = pidStream
+    (self.passthrough, self.passthroughContinuation) = AsyncStream.makeStream()
+
+    // Capture values needed by the supervising task; the BridgeProcess
+    // is created INSIDE the task closure so there is no consume capture.
+    let capturedExec = exec
+    let capturedArgs = args
+    self.bridgeTask = Task {
+      let bridge = BridgeProcess(
+        exec: capturedExec,
+        args: capturedArgs,
+        input: writeStream,
+        output: readCont,
+        pid: pidCont
+      )
+      await bridge.run()
+    }
+  }
+
+  public var processID: pid_t { _processID }
+
   public func start() {
-    bridge.start()
     Task { await self.readLoop() }
+    let pids = pidStream
+    Task { [weak self] in
+      for await pid in pids {
+        await self?.setPID(pid)
+      }
+    }
   }
 
   /// Sends a request with a reserved internal ID and awaits the matching response.
@@ -44,15 +95,7 @@ public actor MCPConnection {
     let data = try JSONEncoder().encode(envelope)
     return try await withCheckedThrowingContinuation { cont in
       pending[id] = cont
-      Task {
-        do {
-          try await bridge.write(data)
-        } catch {
-          if let c = pending.removeValue(forKey: id) {
-            c.resume(throwing: error)
-          }
-        }
-      }
+      writes.yield(Array(data))
     }
   }
 
@@ -62,15 +105,24 @@ public actor MCPConnection {
     if let params { rest["params"] = params }
     let envelope = RPCEnvelope(method: method, rest: rest)
     let data = try JSONEncoder().encode(envelope)
-    try await bridge.write(data)
+    writes.yield(Array(data))
   }
 
   /// Forwards raw bytes from a client through to the transport unchanged.
   public func forward(_ bytes: sending some DataProtocol) async throws {
-    try await bridge.write(bytes)
+    writes.yield(Array(bytes))
+  }
+
+  /// Closes stdin (well-behaved subprocesses exit) and cancels the
+  /// supervising task. Safe to call more than once.
+  public func terminate() {
+    writes.finish()
+    bridgeTask?.cancel()
   }
 
   // MARK: - Private
+
+  private func setPID(_ pid: pid_t) { _processID = pid }
 
   private func reserveID() -> Int {
     let id = nextReservedID
@@ -79,9 +131,7 @@ public actor MCPConnection {
   }
 
   private func readLoop() async {
-    for await line in bridge.messages {
-      // Try to extract the id; if it matches a pending reserved request,
-      // resume it. Everything else goes out on passthrough untouched.
+    for await line in reads {
       if let envelope = try? JSONDecoder().decode(RPCEnvelope.self, from: Data(line)),
          case .number(let n)? = envelope.id {
         let id = NSDecimalNumber(decimal: n).intValue

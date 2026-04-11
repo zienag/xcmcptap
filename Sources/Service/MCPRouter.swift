@@ -65,7 +65,7 @@ public final class MCPRouter: Sendable {
         ])
       )
       state.withLock { $0.cachedInitResponse = initResponse }
-      try await connection.notify(method: "initialized")
+      try await connection.notify(method: "notifications/initialized")
     } catch {
       return
     }
@@ -126,7 +126,7 @@ public final class MCPRouter: Sendable {
         }
       }
 
-    case "initialized":
+    case "notifications/initialized":
       break
 
     default:

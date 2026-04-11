@@ -2,7 +2,7 @@ import class Foundation.JSONDecoder
 import struct Foundation.Data
 import struct Foundation.Decimal
 import Testing
-import XcodeMCPTapServiceCore
+import XcodeMCPTapService
 import XcodeMCPTapShared
 
 @Suite(.serialized)
@@ -17,7 +17,8 @@ struct MCPProxyTests {
 
   @Test func initializeHandshake() async throws {
     let h = makeHarness()
-    defer { h.terminate() }
+    let conn = h.connection
+    defer { Task { await conn.terminate() } }
 
     let envelope = try await h.handshake(id: 42)
 
@@ -39,7 +40,8 @@ struct MCPProxyTests {
 
   @Test func toolsList() async throws {
     let h = makeHarness()
-    defer { h.terminate() }
+    let conn = h.connection
+    defer { Task { await conn.terminate() } }
 
     _ = try await h.handshake()
     h.sendInitialized()
@@ -62,7 +64,8 @@ struct MCPProxyTests {
 
   @Test func toolsCall() async throws {
     let h = makeHarness()
-    defer { h.terminate() }
+    let conn = h.connection
+    defer { Task { await conn.terminate() } }
 
     _ = try await h.handshake()
     h.sendInitialized()
@@ -90,7 +93,8 @@ struct MCPProxyTests {
 
   @Test func multipleSequentialMessages() async throws {
     let h = makeHarness()
-    defer { h.terminate() }
+    let conn = h.connection
+    defer { Task { await conn.terminate() } }
 
     _ = try await h.handshake()
     h.sendInitialized()
@@ -112,7 +116,8 @@ struct MCPProxyTests {
 
   @Test func messagesBufferedDuringInit() async throws {
     let h = makeHarness()
-    defer { h.terminate() }
+    let conn = h.connection
+    defer { Task { await conn.terminate() } }
 
     // Send initialize AND tools/list immediately, before bridge can respond
     h.sendInitialize(id: 1)

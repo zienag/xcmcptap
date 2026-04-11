@@ -2,8 +2,8 @@ import struct Foundation.Date
 import struct Foundation.UUID
 
 public enum MCPTap {
-  public static let serviceName = "dev.multivibe.xcmcptap"
-  public static let statusServiceName = "dev.multivibe.xcmcptap.status"
+  public static let serviceName = "alfred.xcmcptap"
+  public static let statusServiceName = "alfred.xcmcptap.status"
 }
 
 public struct MCPLine: Codable, Sendable {

@@ -2,9 +2,8 @@ import Dispatch
 import XPC
 import XcodeMCPTapShared
 
-@main
-struct XcodeMCPTapClient {
-  static func main() {
+public enum ClientMain {
+  public static func run() {
     let stdoutQueue = DispatchQueue(label: "stdout")
 
     let session: XPCSession

@@ -8,6 +8,10 @@ settings:
     SWIFT_VERSION: "6"
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     DEVELOPMENT_TEAM: GU3RT64VWG
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
+  configs:
+    Release:
+      OTHER_CODE_SIGN_FLAGS: --timestamp
 
 packages:
   XcodeMCPTapPackage:
@@ -18,20 +22,21 @@ targets:
     type: application
     platform: macOS
     sources:
-      - App
+      - path: App
+        excludes:
+          - xcmcptap
+          - xcmcptapd
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapShared
-      - package: XcodeMCPTapPackage
-        product: xcmcptapd
-        link: false
+      - target: xcmcptapd
         embed: true
+        codeSign: false
         copy:
           destination: executables
-      - package: XcodeMCPTapPackage
-        product: xcmcptap
-        link: false
+      - target: xcmcptap
         embed: true
+        codeSign: false
         copy:
           destination: executables
     info:
@@ -41,6 +46,34 @@ targets:
         CFBundleName: Xcode MCP Tap
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: dev.multivibe.xcmcptap
+        PRODUCT_BUNDLE_IDENTIFIER: alfred.xcmcptap
         PRODUCT_NAME: Xcode MCP Tap
         ENABLE_HARDENED_RUNTIME: YES
+
+  xcmcptap:
+    type: tool
+    platform: macOS
+    sources:
+      - App/xcmcptap
+    dependencies:
+      - package: XcodeMCPTapPackage
+        product: XcodeMCPTapClient
+    settings:
+      base:
+        PRODUCT_NAME: xcmcptap
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+
+  xcmcptapd:
+    type: tool
+    platform: macOS
+    sources:
+      - App/xcmcptapd
+    dependencies:
+      - package: XcodeMCPTapPackage
+        product: XcodeMCPTapService
+    settings:
+      base:
+        PRODUCT_NAME: xcmcptapd
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES

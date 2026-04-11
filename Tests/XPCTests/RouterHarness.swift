@@ -1,19 +1,23 @@
 import class Foundation.JSONDecoder
 import struct Foundation.Data
 import System
-import XcodeMCPTapServiceCore
+import XcodeMCPTapService
 import XcodeMCPTapShared
 
-/// Convenience wrapper around MCPRouter + MCPConnection + BridgeProcess + ResponseCollector
-/// for tests. Owns the bridge lifetime; call `terminate()` when done.
+/// Convenience wrapper around MCPRouter + MCPConnection + ResponseCollector
+/// for tests. Owns the connection lifetime; call `terminate()` when done.
 final class RouterHarness {
-  let bridge: BridgeProcess
+  let connection: MCPConnection
   let router: MCPRouter
   let collector: ResponseCollector
 
-  init(bridge: BridgeProcess) {
-    self.bridge = bridge
-    self.router = MCPRouter(connection: MCPConnection(bridge: bridge))
+  convenience init(exec: String, _ args: String...) {
+    self.init(connection: MCPConnection(exec: exec, args: args))
+  }
+
+  private init(connection: MCPConnection) {
+    self.connection = connection
+    self.router = MCPRouter(connection: connection)
     self.collector = ResponseCollector()
     router.sendToClient = { [collector] line in
       collector.continuation.yield(line)
@@ -22,14 +26,7 @@ final class RouterHarness {
   }
 
   static func fake(server path: String) -> RouterHarness {
-    RouterHarness(bridge: BridgeProcess(
-      executable: "/usr/bin/python3",
-      arguments: ["-u", path]
-    ))
-  }
-
-  static func mcpbridge() -> RouterHarness {
-    RouterHarness(bridge: BridgeProcess())
+    RouterHarness(exec: "/usr/bin/python3", "-u", path)
   }
 
   func send(_ json: String) {
@@ -43,7 +40,7 @@ final class RouterHarness {
   }
 
   func sendInitialized() {
-    send(#"{"jsonrpc":"2.0","method":"initialized"}"#)
+    send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
   }
 
   /// Sends a client initialize and awaits the replayed cached response.
@@ -64,20 +61,32 @@ final class RouterHarness {
     }
   }
 
-  func terminate() {
-    bridge.terminate()
+  func terminate() async {
+    await connection.terminate()
   }
 }
 
-/// Absolute path to the fake MCP server python script, resolved relative to
-/// the test file location.
-enum FakeMCPServer {
-  static func path(from file: StaticString = #filePath) -> String {
+/// Absolute paths to test helper scripts, resolved relative to the test
+/// file location.
+enum TestScripts {
+  static func path(_ name: String, from file: StaticString = #filePath) -> String {
     var p = FilePath("\(file)")
     p.removeLastComponent()
     p.removeLastComponent()
     p.removeLastComponent()
-    p.append("fake-mcp-server.py")
+    p.append(name)
     return p.string
+  }
+}
+
+enum FakeMCPServer {
+  static func path(from file: StaticString = #filePath) -> String {
+    TestScripts.path("fake-mcp-server.py", from: file)
+  }
+}
+
+enum MockBridge {
+  static func path(from file: StaticString = #filePath) -> String {
+    TestScripts.path("mock-mcpbridge.py", from: file)
   }
 }

@@ -1,7 +1,7 @@
 import XPC
 import XcodeMCPTapShared
 
-let serviceName = "dev.multivibe.xcmcptap.test-echo"
+let serviceName = "alfred.xcmcptap.test-echo"
 
 let listener = try XPCListener(service: serviceName) { request in
   let (decision, _) = request.accept(
