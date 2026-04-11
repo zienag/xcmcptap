@@ -8,6 +8,8 @@ struct XcodeMCPTapApp: App {
     Window("Xcode MCP Tap", id: "main") {
       ContentView(viewModel: viewModel)
     }
-    .defaultSize(width: 500, height: 400)
+    .windowToolbarStyle(.unifiedCompact)
+    .defaultSize(width: 780, height: 460)
+    .windowResizability(.contentMinSize)
   }
 }

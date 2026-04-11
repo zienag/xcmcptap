@@ -8,9 +8,11 @@ settings:
     SWIFT_VERSION: "6"
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     DEVELOPMENT_TEAM: GU3RT64VWG
-    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
   configs:
     Release:
+      # Prevent get-task-allow from being injected in Release so the signed binary
+      # passes notarization. Debug keeps the default (YES) so lldb can attach.
+      CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
       OTHER_CODE_SIGN_FLAGS: --timestamp
 
 packages:

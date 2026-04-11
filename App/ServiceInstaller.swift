@@ -11,6 +11,7 @@ enum ServiceInstaller {
   private static let uid = getuid()
   static let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(MCPTap.serviceName).plist"
   static let clientLinkPath = NSHomeDirectory() + "/.local/bin/xcmcptap"
+  static let logPath = NSHomeDirectory() + "/Library/Logs/\(MCPTap.serviceName).log"
 
   static func install() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
@@ -24,7 +25,6 @@ enum ServiceInstaller {
     let clientPath = Bundle.main.executableURL!
       .deletingLastPathComponent()
       .appendingPathComponent("xcmcptap").path
-    let logPath = NSHomeDirectory() + "/Library/Logs/\(MCPTap.serviceName).log"
 
     // Bootout old service if running
     run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")

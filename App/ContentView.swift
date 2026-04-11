@@ -3,147 +3,246 @@ import XcodeMCPTapShared
 
 struct ContentView: View {
   @Bindable var viewModel: StatusViewModel
+  @SceneStorage("sidebar.selection") private var rawSelection: String = SidebarItem.overview.rawValue
+  @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
+  private var selection: Binding<SidebarItem> {
+    Binding(
+      get: { SidebarItem(rawValue: rawSelection) ?? .overview },
+      set: { rawSelection = $0.rawValue }
+    )
+  }
 
   var body: some View {
-    VStack(spacing: 0) {
-      headerBar
-      Divider()
-      if viewModel.isServiceRunning {
-        List {
-          toolsSection
-          connectionsSection
-          healthSection
+    NavigationSplitView(columnVisibility: $columnVisibility) {
+      sidebar
+        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+    } detail: {
+      detail
+        .navigationSplitViewColumnWidth(min: 440, ideal: 560)
+    }
+    .navigationSplitViewStyle(.balanced)
+    .frame(minWidth: 680, minHeight: 400)
+  }
+
+  // MARK: - Sidebar
+
+  private var sidebar: some View {
+    List(selection: selection) {
+      ForEach(SidebarItem.allCases) { item in
+        NavigationLink(value: item) {
+          Label(item.title, systemImage: item.systemImage)
         }
-      } else {
-        ContentUnavailableView(
-          "Service Not Running",
-          systemImage: "xmark.circle",
-          description: Text("Install the service to get started.")
-        )
+        .badge(badge(for: item))
       }
-      Divider()
-      actionsBar
+    }
+    .listStyle(.sidebar)
+    .navigationTitle("Xcode MCP Tap")
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      sidebarFooter
     }
   }
 
-  // MARK: - Header
-
-  private var headerBar: some View {
-    HStack(spacing: 8) {
-      Circle()
-        .fill(viewModel.isServiceRunning ? .green : .red)
-        .frame(width: 10, height: 10)
-      Text(viewModel.isServiceRunning ? "Service Running" : "Service Stopped")
-        .font(.headline)
-      Spacer()
+  private var sidebarFooter: some View {
+    HStack(spacing: 10) {
+      StatusDot(running: viewModel.isServiceRunning)
+      VStack(alignment: .leading, spacing: 1) {
+        Text(viewModel.isServiceRunning ? "Service running" : "Service stopped")
+          .font(.caption.weight(.medium))
+        if viewModel.isServiceRunning, let health = viewModel.health {
+          Text("Up \(formatUptime(since: health.startedAt))")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+        } else if !viewModel.isInstalled {
+          Text("Not installed")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+        }
+      }
+      Spacer(minLength: 0)
     }
-    .padding(.horizontal)
+    .padding(.horizontal, 14)
     .padding(.vertical, 10)
-  }
-
-  // MARK: - Tools
-
-  private var toolsSection: some View {
-    Section("Tools") {
-      if viewModel.tools.isEmpty {
-        Text("No tools discovered")
-          .foregroundStyle(.secondary)
-      } else {
-        ForEach(viewModel.tools) { tool in
-          VStack(alignment: .leading, spacing: 2) {
-            Text(tool.name)
-              .fontWeight(.medium)
-              .fontDesign(.monospaced)
-            if !tool.description.isEmpty {
-              Text(tool.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-          }
-        }
-      }
+    .background(.bar)
+    .overlay(alignment: .top) {
+      Divider()
     }
   }
 
-  // MARK: - Connections
-
-  private var connectionsSection: some View {
-    Section("Connections") {
-      if viewModel.connections.isEmpty {
-        Text("No active connections")
-          .foregroundStyle(.secondary)
-      } else {
-        ForEach(viewModel.connections) { connection in
-          HStack {
-            VStack(alignment: .leading, spacing: 2) {
-              Text("PID \(connection.bridgePID)")
-                .fontWeight(.medium)
-              Text("Connected \(connection.connectedAt, style: .relative) ago")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Text("\(connection.messagesRouted) msgs")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .monospacedDigit()
-          }
-        }
-      }
+  private func badge(for item: SidebarItem) -> Int {
+    switch item {
+    case .overview: 0
+    case .tools: viewModel.tools.count
+    case .connections: viewModel.connections.count
+    case .settings: 0
     }
   }
 
-  // MARK: - Health
+  // MARK: - Detail
 
-  private var healthSection: some View {
-    Section("Health") {
-      if let health = viewModel.health {
-        LabeledContent("Uptime", value: formatUptime(since: health.startedAt))
-          .monospacedDigit()
-        LabeledContent("Total served", value: "\(health.totalConnectionsServed)")
-          .monospacedDigit()
-      }
+  @ViewBuilder
+  private var detail: some View {
+    switch selection.wrappedValue {
+    case .overview:
+      OverviewView(viewModel: viewModel) { selection.wrappedValue = $0 }
+    case .tools:
+      ToolsView(viewModel: viewModel)
+    case .connections:
+      ConnectionsView(viewModel: viewModel)
+    case .settings:
+      SettingsView(viewModel: viewModel)
     }
-  }
-
-  // MARK: - Actions
-
-  private var actionsBar: some View {
-    HStack(spacing: 12) {
-      if viewModel.isInstalled {
-        Button("Reinstall") {
-          viewModel.install()
-        }
-        Button("Copy Config") {
-          viewModel.copyConfigCommand()
-        }
-        Button("Uninstall") {
-          viewModel.uninstall()
-        }
-        .foregroundStyle(.red)
-      } else {
-        Button("Install Service") {
-          viewModel.install()
-        }
-        .buttonStyle(.borderedProminent)
-      }
-      Spacer()
-    }
-    .controlSize(.small)
-    .padding(.horizontal)
-    .padding(.vertical, 8)
-  }
-
-  // MARK: - Helpers
-
-  private func formatUptime(since date: Date) -> String {
-    let interval = Date().timeIntervalSince(date)
-    let hours = Int(interval) / 3600
-    let minutes = (Int(interval) % 3600) / 60
-    let seconds = Int(interval) % 60
-    if hours > 0 {
-      return String(format: "%dh %02dm", hours, minutes)
-    }
-    return String(format: "%dm %02ds", minutes, seconds)
   }
 }
+
+// MARK: - Sidebar Item
+
+enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
+  case overview
+  case tools
+  case connections
+  case settings
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .overview: "Overview"
+    case .tools: "Tools"
+    case .connections: "Connections"
+    case .settings: "Settings"
+    }
+  }
+
+  var systemImage: String {
+    switch self {
+    case .overview: "gauge.with.dots.needle.bottom.50percent"
+    case .tools: "wrench.and.screwdriver"
+    case .connections: "personalhotspot"
+    case .settings: "gearshape"
+    }
+  }
+}
+
+// MARK: - Status Dot
+
+struct StatusDot: View {
+  var running: Bool
+  @State private var pulse = false
+
+  var body: some View {
+    ZStack {
+      if running {
+        Circle()
+          .stroke(Color.green.opacity(0.6), lineWidth: 2)
+          .frame(width: 10, height: 10)
+          .scaleEffect(pulse ? 2.4 : 1.0)
+          .opacity(pulse ? 0 : 0.7)
+      }
+      Circle()
+        .fill(running ? Color.green : Color.red.opacity(0.85))
+        .frame(width: 8, height: 8)
+        .shadow(color: (running ? Color.green : Color.red).opacity(0.5), radius: 3)
+    }
+    .frame(width: 14, height: 14)
+    .onAppear {
+      guard running else { return }
+      withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
+        pulse = true
+      }
+    }
+    .onChange(of: running) { _, newValue in
+      pulse = false
+      guard newValue else { return }
+      withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
+        pulse = true
+      }
+    }
+  }
+}
+
+// MARK: - Tool category
+
+enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
+  case build = "Build & Run"
+  case files = "Files"
+  case workspace = "Workspace"
+  case other = "Other"
+
+  var id: String { rawValue }
+
+  var systemImage: String {
+    switch self {
+    case .build: "hammer.fill"
+    case .files: "folder.fill"
+    case .workspace: "macwindow"
+    case .other: "ellipsis.circle.fill"
+    }
+  }
+
+  var tint: Color {
+    switch self {
+    case .build: .orange
+    case .files: .blue
+    case .workspace: .purple
+    case .other: .gray
+    }
+  }
+
+  static func category(for toolName: String) -> ToolCategory {
+    let n = toolName.lowercased()
+    if n.contains("build") || n.contains("test") || n.contains("run") ||
+      n.contains("preview") || n.contains("snippet") || n.contains("buildlog")
+    {
+      return .build
+    }
+    if n.contains("read") || n.contains("write") || n.contains("update") ||
+      n.contains("glob") || n.contains("grep") || n.contains("ls") ||
+      n.contains("mv") || n.contains("rm") || n.contains("dir") ||
+      n.contains("file")
+    {
+      return .files
+    }
+    if n.contains("window") || n.contains("issue") || n.contains("navigator") ||
+      n.contains("workspace") || n.contains("refresh") || n.contains("documentation") ||
+      n.contains("doc")
+    {
+      return .workspace
+    }
+    return .other
+  }
+}
+
+// MARK: - Helpers
+
+func formatUptime(since date: Date) -> String {
+  let interval = max(0, Date().timeIntervalSince(date))
+  let hours = Int(interval) / 3600
+  let minutes = (Int(interval) % 3600) / 60
+  let seconds = Int(interval) % 60
+  if hours > 0 {
+    return String(format: "%dh %02dm", hours, minutes)
+  }
+  if minutes > 0 {
+    return String(format: "%dm %02ds", minutes, seconds)
+  }
+  return String(format: "%ds", seconds)
+}
+
+#if DEBUG
+#Preview("Running") {
+  ContentView(viewModel: StatusViewModel.previewRunning())
+    .frame(width: 960, height: 640)
+}
+
+#Preview("Idle") {
+  ContentView(viewModel: StatusViewModel.previewIdle())
+    .frame(width: 960, height: 640)
+}
+
+#Preview("Not installed") {
+  ContentView(viewModel: StatusViewModel.previewNotInstalled())
+    .frame(width: 960, height: 640)
+}
+#endif

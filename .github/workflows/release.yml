@@ -1,0 +1,198 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag to create and release (e.g. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: "Xcode MCP Tap"
+  SIGN_IDENTITY: "Developer ID Application: Alfred Zien (GU3RT64VWG)"
+  TEAM_ID: GU3RT64VWG
+
+jobs:
+  release:
+    # macos-15 is the newest GitHub-hosted runner at time of writing.
+    # Project deployment target is macOS 26.0 — bump this image when
+    # GitHub ships Xcode 26 on a newer runner.
+    runs-on: macos-15
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          # Strip leading "v"
+          SHORT="${VERSION#v}"
+          echo "tag=$VERSION"        >> "$GITHUB_OUTPUT"
+          echo "short=$SHORT"        >> "$GITHUB_OUTPUT"
+          echo "build=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Select latest Xcode
+        run: |
+          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST" ]; then
+            LATEST="/Applications/Xcode.app"
+          fi
+          echo "Using $LATEST"
+          sudo xcode-select -s "$LATEST"
+          xcodebuild -version
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Import signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVELOPER_ID_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo -n "$CERT_P12_BASE64" | base64 --decode -o "$CERT_PATH"
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH" > /dev/null
+
+          # Put our keychain first in the search list so xcodebuild finds it
+          EXISTING=$(security list-keychains -d user | sed -e 's/^[[:space:]]*//' -e 's/"//g')
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $EXISTING
+
+          rm -f "$CERT_PATH"
+
+      - name: Stamp version into Info.plist
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${{ steps.version.outputs.short }}" App/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ steps.version.outputs.build }}" App/Info.plist
+
+      - name: Generate Xcode project
+        run: xcodegen generate --spec project.yml
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project XcodeMCPTap.xcodeproj \
+            -scheme XcodeMCPTap \
+            -configuration Release \
+            CONFIGURATION_BUILD_DIR="$PWD/.build/Release" \
+            CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp"
+
+      - name: Verify signature
+        run: |
+          APP=".build/Release/$APP_NAME.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl --assess --type execute --verbose "$APP" || true
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          APP=".build/Release/$APP_NAME.app"
+          ZIP=".build/$APP_NAME.zip"
+          ditto -c -k --keepParent "$APP" "$ZIP"
+
+          xcrun notarytool submit "$ZIP" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$TEAM_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --wait
+
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          rm -f "$ZIP"
+
+      - name: Build DMG
+        id: dmg
+        run: |
+          APP=".build/Release/$APP_NAME.app"
+          DMG_NAME="XcodeMCPTap-${{ steps.version.outputs.short }}"
+          DMG_STAGING=".build/dmg"
+          DMG_FINAL=".build/${DMG_NAME}.dmg"
+
+          rm -rf "$DMG_STAGING"
+          mkdir -p "$DMG_STAGING"
+          cp -R "$APP" "$DMG_STAGING/"
+          ln -s /Applications "$DMG_STAGING/Applications"
+
+          hdiutil create \
+            -srcfolder "$DMG_STAGING" \
+            -volname "XcodeMCPTap" \
+            -fs HFS+ \
+            -format UDZO \
+            -ov \
+            "$DMG_FINAL"
+
+          codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_FINAL"
+
+          # Notarize & staple the DMG as well (so right-click-open works offline)
+          xcrun notarytool submit "$DMG_FINAL" \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --team-id "$TEAM_ID" \
+            --password "${{ secrets.APPLE_ID_PASSWORD }}" \
+            --wait
+          xcrun stapler staple "$DMG_FINAL"
+
+          echo "path=$DMG_FINAL"     >> "$GITHUB_OUTPUT"
+          echo "name=${DMG_NAME}.dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Create git tag (manual dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: ${{ steps.dmg.outputs.path }}
+
+      - name: Clean up keychain
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain" 2>/dev/null || true
