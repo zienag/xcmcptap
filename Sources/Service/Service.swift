@@ -45,16 +45,17 @@ public enum ServiceMain {
         incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
           fputs("[service] received from client: \(message.content.prefix(100))\n", stderr)
           registry.recordMessage(id: connectionID)
-          router.handleClientMessage(message.content)
+          router.handleClientMessage(from: connectionID, message.content)
           return nil
         },
         cancellationHandler: { _ in
           fputs("[service] connection cancelled\n", stderr)
+          router.unregisterClient(id: connectionID)
           registry.unregister(id: connectionID)
         }
       )
 
-      router.sendToClient = { line in
+      _ = router.registerClient(id: connectionID) { line in
         fputs("[service] sending to client: \(line.prefix(100))\n", stderr)
         try? session.send(MCPLine(line))
       }

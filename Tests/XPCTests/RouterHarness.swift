@@ -1,5 +1,6 @@
 import class Foundation.JSONDecoder
 import struct Foundation.Data
+import struct Foundation.UUID
 import System
 import XcodeMCPTapService
 import XcodeMCPTapShared
@@ -10,6 +11,7 @@ final class RouterHarness {
   let connection: MCPConnection
   let router: MCPRouter
   let collector: ResponseCollector
+  let clientID: UUID
 
   convenience init(exec: String, _ args: String...) {
     self.init(connection: MCPConnection(exec: exec, args: args))
@@ -19,7 +21,7 @@ final class RouterHarness {
     self.connection = connection
     self.router = MCPRouter(connection: connection)
     self.collector = ResponseCollector()
-    router.sendToClient = { [collector] line in
+    self.clientID = router.registerClient { [collector] line in
       collector.continuation.yield(line)
     }
     router.start()
@@ -30,7 +32,7 @@ final class RouterHarness {
   }
 
   func send(_ json: String) {
-    router.handleClientMessage(json)
+    router.handleClientMessage(from: clientID, json)
   }
 
   func sendInitialize(id: Int = 1) {

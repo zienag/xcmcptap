@@ -130,6 +130,10 @@ class State:
     def __init__(self):
         self.init_received = False
         self.initialized = False
+        # Last observed `notifications/cancelled` requestId (as the mock
+        # saw it — i.e., the bridge-facing id the router rewrote to).
+        # Tests read this via the __last_cancel probe tool.
+        self.last_cancel_request_id = None
 
 
 def log(msg):
@@ -137,7 +141,7 @@ def log(msg):
     sys.stderr.flush()
 
 
-def handle(req, state):
+def handle(req, state, emit):
     method = req.get("method")
     rid = req.get("id")
 
@@ -148,6 +152,12 @@ def handle(req, state):
     if method == "notifications/initialized":
         if state.init_received:
             state.initialized = True
+        return None
+
+    if method == "notifications/cancelled":
+        if state.initialized:
+            params = req.get("params") or {}
+            state.last_cancel_request_id = params.get("requestId")
         return None
 
     # Real mcpbridge silently drops anything that arrives before a valid
@@ -165,6 +175,51 @@ def handle(req, state):
         params = req.get("params", {})
         tool_name = params.get("name", "unknown")
         arguments = params.get("arguments", {})
+
+        # Test-only probe tools (prefix `__`) — exercise router behavior
+        # that real mcpbridge triggers asynchronously in production.
+        if tool_name == "__emit_progress":
+            progress_token = (params.get("_meta") or {}).get("progressToken")
+            if progress_token is not None:
+                emit({
+                    "jsonrpc": "2.0",
+                    "method": "notifications/progress",
+                    "params": {
+                        "progressToken": progress_token,
+                        "progress": 50,
+                        "message": "halfway",
+                    },
+                })
+            return {
+                "jsonrpc": "2.0",
+                "id": rid,
+                "result": {"content": [{"type": "text", "text": "progress emitted"}]},
+            }
+
+        if tool_name == "__emit_broadcast":
+            emit({
+                "jsonrpc": "2.0",
+                "method": "notifications/tools/list_changed",
+                "params": {},
+            })
+            return {
+                "jsonrpc": "2.0",
+                "id": rid,
+                "result": {"content": [{"type": "text", "text": "broadcast emitted"}]},
+            }
+
+        if tool_name == "__last_cancel":
+            return {
+                "jsonrpc": "2.0",
+                "id": rid,
+                "result": {
+                    "content": [{
+                        "type": "text",
+                        "text": json.dumps({"requestId": state.last_cancel_request_id}),
+                    }]
+                },
+            }
+
         if tool_name in TOOL_RESPONSES:
             return {"jsonrpc": "2.0", "id": rid, "result": TOOL_RESPONSES[tool_name]}
         return {
@@ -196,6 +251,13 @@ def handle(req, state):
 def main():
     state = State()
     log("started")
+
+    def emit(obj):
+        out = json.dumps(obj)
+        log(f"emit: {out[:120]}")
+        sys.stdout.write(out + "\n")
+        sys.stdout.flush()
+
     for raw_line in iter(sys.stdin.buffer.readline, b""):
         line = raw_line.decode().strip()
         if not line:
@@ -206,12 +268,9 @@ def main():
             log(f"parse error: {line[:120]}")
             continue
         log(f"recv: {line[:120]}")
-        resp = handle(req, state)
+        resp = handle(req, state, emit)
         if resp is not None:
-            out = json.dumps(resp)
-            log(f"send: {out[:120]}")
-            sys.stdout.write(out + "\n")
-            sys.stdout.flush()
+            emit(resp)
 
 
 if __name__ == "__main__":
