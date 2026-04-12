@@ -3,3 +3,4 @@
 XcodeMCPTap.xcodeproj/
 .DS_Store
 .vscode/
+.claude/*.lock
