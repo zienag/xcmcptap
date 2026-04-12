@@ -17,6 +17,10 @@ settings:
       # passes notarization. Debug keeps the default (YES) so lldb can attach.
       CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
       OTHER_CODE_SIGN_FLAGS: --timestamp
+      # Enable post-link stripping; keep nlist for crash-log symbolication.
+      DEPLOYMENT_POSTPROCESSING: YES
+      STRIP_STYLE: debugging
+      ASSETCATALOG_COMPILER_OPTIMIZATION: space
 
 packages:
   XcodeMCPTapPackage:

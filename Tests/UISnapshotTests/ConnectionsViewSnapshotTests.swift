@@ -6,14 +6,14 @@ import XcodeMCPTapUI
 
 @MainActor
 @Suite(.snapshots(record: .missing))
-struct OverviewViewSnapshotTests {
-  static let size = CGSize(width: 640, height: 200)
+struct ConnectionsViewSnapshotTests {
+  static let size = CGSize(width: 640, height: 280)
 
   @Test
-  func notInstalled() {
+  func active() {
     let controller = NSHostingController(
-      rootView: OverviewView(
-        store: Store(initialState: .previewNotInstalled()) { AppFeature() }
+      rootView: ConnectionsView(
+        store: Store(initialState: .previewRunning()) { AppFeature() }
       )
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
@@ -21,11 +21,11 @@ struct OverviewViewSnapshotTests {
   }
 
   @Test
-  func running() {
+  func empty() {
+    var state = AppFeature.State.previewIdle()
+    state.connections = []
     let controller = NSHostingController(
-      rootView: OverviewView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
-      )
+      rootView: ConnectionsView(store: Store(initialState: state) { AppFeature() })
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))

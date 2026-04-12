@@ -20,7 +20,7 @@ public struct StatusRequest: Codable, Sendable {
   public init() {}
 }
 
-public struct StatusResponse: Codable, Sendable {
+public struct StatusResponse: Codable, Equatable, Sendable {
   public var connections: [ConnectionInfo]
   public var health: ServiceHealth
   public var tools: [ToolInfo]
@@ -32,7 +32,7 @@ public struct StatusResponse: Codable, Sendable {
   }
 }
 
-public struct ConnectionInfo: Codable, Sendable, Identifiable {
+public struct ConnectionInfo: Codable, Equatable, Sendable, Identifiable {
   public var id: UUID
   public var connectedAt: Date
   public var messagesRouted: Int
@@ -48,7 +48,7 @@ public struct ConnectionInfo: Codable, Sendable, Identifiable {
   }
 }
 
-public struct ServiceHealth: Codable, Sendable {
+public struct ServiceHealth: Codable, Equatable, Sendable {
   public var startedAt: Date
   public var totalConnectionsServed: Int
   public var activeConnectionCount: Int
@@ -60,7 +60,7 @@ public struct ServiceHealth: Codable, Sendable {
   }
 }
 
-public struct ToolInfo: Codable, Sendable, Identifiable {
+public struct ToolInfo: Codable, Equatable, Sendable, Identifiable {
   public var name: String
   public var description: String
 
@@ -72,8 +72,8 @@ public struct ToolInfo: Codable, Sendable, Identifiable {
   }
 }
 
-public struct StatusEvent: Codable, Sendable {
-  public enum Kind: String, Codable, Sendable {
+public struct StatusEvent: Codable, Equatable, Sendable {
+  public enum Kind: String, Codable, Equatable, Sendable {
     case connectionOpened
     case connectionClosed
   }

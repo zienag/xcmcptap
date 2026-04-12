@@ -1,15 +1,13 @@
 import AppKit
+import ComposableArchitecture
 import SwiftUI
 import XcodeMCPTapShared
 
 public struct SettingsView: View {
-  @Bindable public var viewModel: StatusViewModel
-  @State private var copied = false
-  @State private var copyResetTask: Task<Void, Never>?
-  @State private var showingUninstallConfirm = false
+  @Bindable public var store: StoreOf<AppFeature>
 
-  public init(viewModel: StatusViewModel) {
-    self.viewModel = viewModel
+  public init(store: StoreOf<AppFeature>) {
+    self.store = store
   }
 
   public var body: some View {
@@ -25,11 +23,15 @@ public struct SettingsView: View {
     .navigationTitle("Settings")
     .confirmationDialog(
       "Uninstall the service?",
-      isPresented: $showingUninstallConfirm,
+      isPresented: $store.settings.showingUninstallConfirm,
       titleVisibility: .visible
     ) {
-      Button("Uninstall", role: .destructive) { viewModel.uninstall() }
-      Button("Cancel", role: .cancel) {}
+      Button("Uninstall", role: .destructive) {
+        store.send(.settings(.uninstallConfirmed))
+      }
+      Button("Cancel", role: .cancel) {
+        store.send(.settings(.uninstallCancelled))
+      }
     } message: {
       Text("Removes the launch agent and xcmcptap symlink.")
     }
@@ -39,7 +41,7 @@ public struct SettingsView: View {
     VStack(alignment: .leading, spacing: 8) {
       SectionLabel("MCP config command")
       HStack(spacing: 8) {
-        Text(viewModel.mcpConfigCommand)
+        Text(store.mcpConfigCommand)
           .font(.system(.caption, design: .monospaced))
           .textSelection(.enabled)
           .foregroundStyle(.primary)
@@ -58,20 +60,18 @@ public struct SettingsView: View {
           }
 
         Button {
-          viewModel.copyConfigCommand()
-          copied = true
-          copyResetTask?.cancel()
-          copyResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.2))
-            if !Task.isCancelled { copied = false }
-          }
+          store.send(.settings(.copyTapped))
         } label: {
-          Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-            .frame(width: 62)
+          let copied = store.settings.copied
+          Label(
+            copied ? "Copied" : "Copy",
+            systemImage: copied ? "checkmark" : "doc.on.doc"
+          )
+          .frame(width: 62)
         }
         .buttonStyle(.bordered)
-        .tint(copied ? .green : .accentColor)
-        .animation(.easeInOut(duration: 0.15), value: copied)
+        .tint(store.settings.copied ? .green : .accentColor)
+        .animation(.easeInOut(duration: 0.15), value: store.settings.copied)
       }
     }
   }
@@ -80,11 +80,11 @@ public struct SettingsView: View {
     VStack(alignment: .leading, spacing: 8) {
       SectionLabel("Paths")
       VStack(spacing: 0) {
-        PathRow(label: "Client", path: viewModel.clientPath)
+        PathRow(label: "Client", path: store.clientPath)
         Divider()
-        PathRow(label: "Launch agent", path: viewModel.plistPath)
+        PathRow(label: "Launch agent", path: store.plistPath)
         Divider()
-        PathRow(label: "Log", path: viewModel.logPath)
+        PathRow(label: "Log", path: store.logPath)
       }
       .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
       .overlay {
@@ -96,11 +96,11 @@ public struct SettingsView: View {
 
   private var actionsRow: some View {
     HStack(spacing: 8) {
-      if viewModel.isInstalled {
-        Button("Reinstall") { viewModel.install() }
-        Button("Uninstall", role: .destructive) { showingUninstallConfirm = true }
+      if store.isInstalled {
+        Button("Reinstall") { store.send(.settings(.installTapped)) }
+        Button("Uninstall", role: .destructive) { store.send(.settings(.uninstallTapped)) }
       } else {
-        Button("Install service") { viewModel.install() }
+        Button("Install service") { store.send(.settings(.installTapped)) }
           .buttonStyle(.borderedProminent)
       }
       Spacer()
@@ -170,12 +170,12 @@ private struct PathRow: View {
 
 #if DEBUG
 #Preview("Installed") {
-  SettingsView(viewModel: .previewRunning())
+  SettingsView(store: Store(initialState: .previewRunning()) { AppFeature() })
     .frame(width: 640, height: 320)
 }
 
 #Preview("Not installed") {
-  SettingsView(viewModel: .previewNotInstalled())
+  SettingsView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
     .frame(width: 640, height: 320)
 }
 #endif

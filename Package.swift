@@ -13,6 +13,7 @@ let package = Package(
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.4.0"),
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
+    .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.17.0"),
   ],
   targets: [
     .target(name: "XcodeMCPTapShared", path: "Sources/Shared"),
@@ -31,7 +32,10 @@ let package = Package(
     ),
     .target(
       name: "XcodeMCPTapUI",
-      dependencies: ["XcodeMCPTapShared"],
+      dependencies: [
+        "XcodeMCPTapShared",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ],
       path: "Sources/UI"
     ),
     .executableTarget(
@@ -55,6 +59,14 @@ let package = Package(
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
       ],
       path: "Tests/UISnapshotTests"
+    ),
+    .testTarget(
+      name: "FeatureTests",
+      dependencies: [
+        "XcodeMCPTapUI",
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ],
+      path: "Tests/FeatureTests"
     ),
   ]
 )

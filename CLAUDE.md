@@ -19,7 +19,7 @@ Several projects on GitHub solve this same problem. Key reference implementation
 | [xcodecli](https://github.com/oozoofrog/xcodecli) | Unix domain socket | Foundation Process + Pipe + signal forwarding | Go + Swift. Session pool keyed by {XcodePID, SessionID, DeveloperDir}. |
 | [xcode-mcp-manager](https://github.com/ndrblinov/xcode-mcp-manager) | stdio (is the MCP server) | Node.js spawn | TypeScript. AppleScript auto-approver. State machine with health checks. |
 
-**Nobody uses XPC for the client-facing side.** All use HTTP or Unix sockets. Our project uses XPC, which is the most macOS-native approach but has proven problematic for subprocess management.
+**Nobody uses XPC for the client-facing side.** All use HTTP or Unix sockets. Our project uses XPC — the most macOS-native approach.
 
 ## mcpbridge Technical Details
 
@@ -43,14 +43,13 @@ xcodebuild -scheme XcodeMCPTap         # Build .app bundle (debug)
 # SPM (libraries/tests)
 swift build                            # Build all SPM targets
 swift build -Xswiftc -warnings-as-errors  # Same, with warnings as errors
-swift test                             # Run all SPM tests (XPC + UI snapshot)
-swift test --filter UISnapshotTests    # Run just snapshot tests
+swift test                             # Run all SPM tests
+swift test --filter UISnapshotTests    # Or filter by target name
 
 # Install & distribute
-./install.sh                           # Build release, sign, notarize, install to ~/Applications
-./install.sh --dmg                     # Build release, sign, notarize, create .dmg
+./install.sh                           # Regenerate project, build release, sign, notarize, install to ~/Applications
+./install.sh --dmg                     # Same as above, but package into a .dmg instead of installing
 ./install.sh --uninstall               # Remove app, LaunchAgent, and symlink
-NOTARIZE=false ./install.sh            # Skip notarization (local dev)
 ```
 
 **Warnings-as-errors:** Xcode builds enforce this via `SWIFT_TREAT_WARNINGS_AS_ERRORS: YES` in `project.yml`. SPM has no clean Package.swift setting for this — pass `-Xswiftc -warnings-as-errors` on the command line.
@@ -73,7 +72,7 @@ All tests are SPM targets. Run via `swift test` or the Xcode scheme.
 
 - **`UISnapshotTests`** (`Tests/UISnapshotTests/`) — SwiftUI snapshot tests against `XcodeMCPTapUI` using [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing). Pattern: host the view in `NSHostingController`, then `assertSnapshot(of: controller, as: .image(size:))`. Suite-level `.snapshots(record: .missing)` auto-records new baselines. Baselines live in `Tests/UISnapshotTests/__Snapshots__/<suite>/<test>.1.png` and are committed.
 
-**Snapshot determinism** — `StatusViewModel.previewRunning()` / `.previewIdle()` pin an injectable `nowProvider` to `Date(timeIntervalSince1970: 1_700_000_000)` and build `ServiceHealth.startedAt` relative to that, so `uptimeText` is byte-stable across runs. Never read `Date()` directly from a view — compute intervals via the VM's pinned clock instead. `StatusDot`'s `onAppear` pulse doesn't fire in snapshots (the hosting controller is never attached to a window), so the animation stays at its initial frame — if future tests attach the controller to a window, gate the pulse.
+- **`FeatureTests`** (`Tests/FeatureTests/`) — TCA `TestStore` tests for the UI reducers. Use `TestClock` for time-dependent effects, override `@Dependency` via `withDependencies:`. Time in state is pinned via `AppFeature.State.previewNow` so snapshot and TestStore fixtures share a clock.
 
 **XPC session lifecycle:** `XPCSession` must be cancelled via `session.cancel(reason:)` before deallocation — otherwise it crashes with `_xpc_api_misuse`. Always use `defer { session.cancel(reason:) }`.
 
@@ -96,17 +95,22 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 
 ### Targets
 
-**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries only, no executables, no exclusions. `App/` is Xcode-native: the `.app` bundle's `@main` entry point and the two thin `@main` tool wrappers. Everything else (views, viewmodel, installer) lives in the `XcodeMCPTapUI` library so it's importable by tests and previewable from any package consumer.
+**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries only, no executables, no exclusions. `App/` is Xcode-native: the `.app` bundle's `@main` entry point and the two thin `@main` tool wrappers. Everything else (views, features, dependency clients, installer) lives in the `XcodeMCPTapUI` library so it's importable by tests and previewable from any package consumer.
 
 **SPM libraries** (`Package.swift`, all under `Sources/`):
 
-- **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing). Used by every other target.
+- **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing), plus the status protocol types (`StatusRequest/Response`, `ConnectionInfo`, `ServiceHealth`, `ToolInfo`, `StatusEvent`) — all `Equatable` so they can appear in `@ObservableState`. Used by every other target.
 - **XcodeMCPTapClient** (`Sources/Client/`) — Client logic: XPC session, stdin reader, stdout writer. Exposes `public enum ClientMain { public static func run() }`.
 - **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, plus `public enum ServiceMain { public static func run() }`. Imported by tests.
-- **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI layer. `ContentView`, `OverviewView`, `ToolsView`, `ConnectionsView`, `SettingsView`, `StatusDot`, `SidebarItem`, `ToolCategory`, `formatUptime(interval:)`, plus `StatusViewModel` (the `@Observable` model) and `ServiceInstaller`. `StatusViewModel` exposes an injectable `nowProvider: () -> Date` so previews and snapshot tests run on a pinned clock.
+- **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI + TCA layer. Organized into three folders:
+  - `Views/` — `ContentView`, `OverviewView`, `ToolsView`, `ConnectionsView`, `SettingsView`, plus `StatusDot`, `SidebarItem`, `ToolCategory`, `formatUptime(interval:)`.
+  - `Features/` — `AppFeature` (root reducer, owns global state + selection + `now`), `ToolsFeature` (search/selection sub-feature), `SettingsFeature` (copy-reset + uninstall-confirm sub-feature with a `Delegate` action that forwards install/uninstall intent to the root).
+  - `Dependencies/` — `StatusClient` (wraps `XPCSession` + event stream in an actor, served via `@Dependency(\.statusClient)`), `ServiceInstallerClient` (install/uninstall/path accessors), `PasteboardClient` (NSPasteboard copy). Each exposes `liveValue` and `testValue`.
+  - Top-level `ServiceInstaller.swift` (the live implementation backing `ServiceInstallerClient`) and `PreviewState.swift` (`AppFeature.State.previewRunning()` etc.).
 - **xpc-test-echo-server** (`Sources/TestEchoServer/`) — Test helper that echoes `MCPLine` messages back with "echo:" prefix.
 - **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, Subprocess round-trip tests, MCP proxy tests.
 - **UISnapshotTests** (`Tests/UISnapshotTests/`) — Swift Testing suite: SwiftUI snapshot tests over `XcodeMCPTapUI`.
+- **FeatureTests** (`Tests/FeatureTests/`) — Swift Testing suite: TCA `TestStore` tests over `AppFeature` / `ToolsFeature` / `SettingsFeature`.
 
 **Xcode targets** (`project.yml`):
 
@@ -126,13 +130,5 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 - **No blanket Foundation imports.** Use atomic imports (`import struct Foundation.Data`, `import class Foundation.JSONEncoder`). `Darwin.C` provides C stdlib (`fputs`, `stderr`, `pid_t`, `sleep`, `getuid`). `Dispatch` is its own module, not part of Foundation.
 - **`Synchronization.Mutex` is non-copyable.** Cannot assign to a local variable or capture by value. Access through `self` when capturing in closures, or capture the owning object.
 - **Thread safety:** All mutable shared state is guarded by `Mutex`. Classes use `@unchecked Sendable` when Mutex provides the safety guarantee. Use `nonisolated(unsafe) var` when synchronization is handled externally (e.g., semaphores in tests).
-
-## Current Blocker: mcpbridge from xcmcptapd
-
-mcpbridge fails with `DecodeError Code=1` ("could not parse raw message") when spawned from `xcmcptapd` with concurrent I/O. This happens with Foundation.Process, raw posix_spawn, and swift-subprocess — the subprocess library doesn't matter.
-
-**What works:** mcpbridge from terminal, from `launchctl submit`, from the test runner, from xcmcptapd with synchronous single-threaded I/O (unusable for a real service).
-
-**What fails:** mcpbridge from xcmcptapd with ANY concurrent stdout reader. The error correlates with our write arriving at mcpbridge. The data is valid JSON (verified with `xxd` via `tee` wrapper). Adding a stdout read task — even on a completely different fd — triggers the failure.
-
-All existing proxy projects (XcodeMCPKit, XCodeMCPService, xcodecli) spawn mcpbridge from their daemons using Foundation.Process + Pipe. Their code is structurally similar. Need to investigate what they do differently — likely related to using HTTP/NWListener instead of XPC, or differences in launchd service configuration.
+- **TCA effects + strict concurrency:** `@Reducer struct` is not `Sendable`, so capturing `self` inside `.run { send in ... }` fails. Copy each `@Dependency` into a local before returning the effect: `let clock = self.clock; return .run { ... }`. Or make the effect body a `static` helper taking the deps as parameters.
+- **Nested action enums need `@CasePathable`:** `TestStore.receive(\.delegate.install)` traverses nested case paths. The outer `Action` gets it from `@Reducer`; inner enums (e.g. `SettingsFeature.Action.Delegate`) must be annotated explicitly.

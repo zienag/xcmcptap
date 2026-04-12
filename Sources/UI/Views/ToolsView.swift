@@ -1,40 +1,17 @@
+import ComposableArchitecture
 import SwiftUI
 import XcodeMCPTapShared
 
 public struct ToolsView: View {
-  @Bindable public var viewModel: StatusViewModel
-  @State private var searchText = ""
-  @State private var selectedToolID: String?
+  @Bindable public var store: StoreOf<ToolsFeature>
 
-  public init(viewModel: StatusViewModel) {
-    self.viewModel = viewModel
-  }
-
-  private var filteredTools: [ToolInfo] {
-    let trimmed = searchText.trimmingCharacters(in: .whitespaces)
-    guard !trimmed.isEmpty else { return viewModel.tools }
-    return viewModel.tools.filter { tool in
-      tool.name.localizedCaseInsensitiveContains(trimmed)
-        || tool.description.localizedCaseInsensitiveContains(trimmed)
-    }
-  }
-
-  private var groupedTools: [(ToolCategory, [ToolInfo])] {
-    let grouped = Dictionary(grouping: filteredTools) { ToolCategory.category(for: $0.name) }
-    return ToolCategory.allCases.compactMap { category in
-      guard let items = grouped[category], !items.isEmpty else { return nil }
-      return (category, items.sorted { $0.name < $1.name })
-    }
-  }
-
-  private var selectedTool: ToolInfo? {
-    guard let id = selectedToolID else { return nil }
-    return viewModel.tools.first { $0.id == id }
+  public init(store: StoreOf<ToolsFeature>) {
+    self.store = store
   }
 
   public var body: some View {
     Group {
-      if viewModel.tools.isEmpty {
+      if store.tools.isEmpty {
         ContentUnavailableView("No tools", systemImage: "wrench.and.screwdriver")
       } else {
         HSplitView {
@@ -46,15 +23,13 @@ public struct ToolsView: View {
       }
     }
     .navigationTitle("Tools")
-    .searchable(text: $searchText, placement: .toolbar, prompt: "Search tools")
-    .onAppear { selectFirstIfNeeded() }
-    .onChange(of: searchText) { _, _ in selectFirstIfNeeded() }
-    .onChange(of: viewModel.tools.count) { _, _ in selectFirstIfNeeded() }
+    .searchable(text: $store.searchText, placement: .toolbar, prompt: "Search tools")
+    .onAppear { store.send(.onAppear) }
   }
 
   private var toolList: some View {
-    List(selection: $selectedToolID) {
-      ForEach(groupedTools, id: \.0) { (category, tools) in
+    List(selection: $store.selectedToolID) {
+      ForEach(store.groupedTools, id: \.0) { (category, tools) in
         Section {
           ForEach(tools) { tool in
             ToolListRow(tool: tool)
@@ -76,27 +51,20 @@ public struct ToolsView: View {
     .listStyle(.sidebar)
     .scrollContentBackground(.hidden)
     .overlay {
-      if filteredTools.isEmpty {
-        ContentUnavailableView.search(text: searchText)
+      if store.filteredTools.isEmpty {
+        ContentUnavailableView.search(text: store.searchText)
       }
     }
   }
 
   @ViewBuilder
   private var toolDetail: some View {
-    if let tool = selectedTool {
+    if let tool = store.selectedTool {
       ToolDetailView(tool: tool)
     } else {
       ContentUnavailableView("Select a tool", systemImage: "wrench.and.screwdriver")
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-  }
-
-  private func selectFirstIfNeeded() {
-    if let id = selectedToolID, filteredTools.contains(where: { $0.id == id }) {
-      return
-    }
-    selectedToolID = filteredTools.first?.id
   }
 }
 
@@ -160,14 +128,16 @@ private struct ToolDetailView: View {
 
 #if DEBUG
 #Preview("Populated") {
-  ToolsView(viewModel: .previewRunning())
-    .frame(width: 820, height: 600)
+  ToolsView(
+    store: Store(
+      initialState: ToolsFeature.State(tools: AppFeature.State.sampleTools)
+    ) { ToolsFeature() }
+  )
+  .frame(width: 820, height: 600)
 }
 
 #Preview("Empty") {
-  let model = StatusViewModel.previewIdle()
-  model.tools = []
-  return ToolsView(viewModel: model)
+  ToolsView(store: Store(initialState: ToolsFeature.State()) { ToolsFeature() })
     .frame(width: 820, height: 600)
 }
 #endif

@@ -1,20 +1,17 @@
+import ComposableArchitecture
 import SwiftUI
 import XcodeMCPTapShared
 
 public struct ConnectionsView: View {
-  @Bindable public var viewModel: StatusViewModel
-  @State private var now: Date
+  public var store: StoreOf<AppFeature>
 
-  private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-
-  public init(viewModel: StatusViewModel) {
-    self.viewModel = viewModel
-    self._now = State(initialValue: viewModel.nowProvider())
+  public init(store: StoreOf<AppFeature>) {
+    self.store = store
   }
 
   public var body: some View {
     Group {
-      if viewModel.connections.isEmpty {
+      if store.connections.isEmpty {
         ContentUnavailableView(
           "No active connections",
           systemImage: "personalhotspot.slash"
@@ -22,8 +19,8 @@ public struct ConnectionsView: View {
       } else {
         ScrollView {
           LazyVStack(spacing: 6) {
-            ForEach(viewModel.connections) { connection in
-              ConnectionRow(connection: connection, now: now)
+            ForEach(store.connections) { connection in
+              ConnectionRow(connection: connection, now: store.now)
             }
           }
           .padding(16)
@@ -32,7 +29,6 @@ public struct ConnectionsView: View {
       }
     }
     .navigationTitle("Connections")
-    .onReceive(timer) { now = $0 }
   }
 }
 
@@ -100,14 +96,14 @@ private struct ConnectionRow: View {
 
 #if DEBUG
 #Preview("Active") {
-  ConnectionsView(viewModel: .previewRunning())
+  ConnectionsView(store: Store(initialState: .previewRunning()) { AppFeature() })
     .frame(width: 640, height: 300)
 }
 
 #Preview("Empty") {
-  let model = StatusViewModel.previewIdle()
-  model.connections = []
-  return ConnectionsView(viewModel: model)
+  var state = AppFeature.State.previewIdle()
+  state.connections = []
+  return ConnectionsView(store: Store(initialState: state) { AppFeature() })
     .frame(width: 640, height: 300)
 }
 #endif

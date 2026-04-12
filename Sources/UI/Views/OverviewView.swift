@@ -1,13 +1,12 @@
+import ComposableArchitecture
 import SwiftUI
 import XcodeMCPTapShared
 
 public struct OverviewView: View {
-  @Bindable public var viewModel: StatusViewModel
-  public var navigate: (SidebarItem) -> Void
+  @Bindable public var store: StoreOf<AppFeature>
 
-  public init(viewModel: StatusViewModel, navigate: @escaping (SidebarItem) -> Void) {
-    self.viewModel = viewModel
-    self.navigate = navigate
+  public init(store: StoreOf<AppFeature>) {
+    self.store = store
   }
 
   public var body: some View {
@@ -24,18 +23,18 @@ public struct OverviewView: View {
 
   private var statusBar: some View {
     HStack(spacing: 10) {
-      StatusDot(running: viewModel.isServiceRunning)
+      StatusDot(running: store.isServiceRunning)
       Text(statusText)
         .font(.headline)
       Spacer(minLength: 8)
-      if viewModel.isServiceRunning, let uptime = viewModel.uptimeText {
+      if store.isServiceRunning, let uptime = store.uptimeText {
         Label(uptime, systemImage: "clock")
           .labelStyle(.titleAndIcon)
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .monospacedDigit()
-      } else if !viewModel.isInstalled {
-        Button("Install") { viewModel.install() }
+      } else if !store.isInstalled {
+        Button("Install") { store.send(.installTapped) }
           .controlSize(.regular)
           .buttonStyle(.borderedProminent)
       }
@@ -50,8 +49,8 @@ public struct OverviewView: View {
   }
 
   private var statusText: String {
-    if viewModel.isServiceRunning { return "Service running" }
-    if viewModel.isInstalled { return "Service stopped" }
+    if store.isServiceRunning { return "Service running" }
+    if store.isInstalled { return "Service stopped" }
     return "Service not installed"
   }
 
@@ -62,28 +61,28 @@ public struct OverviewView: View {
     ) {
       StatTile(
         label: "Tools",
-        value: "\(viewModel.tools.count)",
+        value: "\(store.tools.tools.count)",
         icon: "wrench.and.screwdriver.fill",
         tint: .orange
-      ) { navigate(.tools) }
+      ) { store.selection = .tools }
 
       StatTile(
         label: "Active",
-        value: "\(viewModel.connections.count)",
+        value: "\(store.connections.count)",
         icon: "personalhotspot",
         tint: .green
-      ) { navigate(.connections) }
+      ) { store.selection = .connections }
 
       StatTile(
         label: "Served",
-        value: "\(viewModel.health?.totalConnectionsServed ?? 0)",
+        value: "\(store.health?.totalConnectionsServed ?? 0)",
         icon: "tray.full.fill",
         tint: .blue
       )
 
       StatTile(
         label: "Messages",
-        value: "\(viewModel.connections.reduce(0) { $0 + $1.messagesRouted })",
+        value: "\(store.totalMessagesRouted)",
         icon: "arrow.left.arrow.right",
         tint: .purple
       )
@@ -161,12 +160,12 @@ public struct StatTile: View {
 
 #if DEBUG
 #Preview("Running") {
-  OverviewView(viewModel: .previewRunning(), navigate: { _ in })
+  OverviewView(store: Store(initialState: .previewRunning()) { AppFeature() })
     .frame(width: 640, height: 200)
 }
 
 #Preview("Not installed") {
-  OverviewView(viewModel: .previewNotInstalled(), navigate: { _ in })
+  OverviewView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
     .frame(width: 640, height: 200)
 }
 #endif

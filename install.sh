@@ -50,6 +50,7 @@ echo "Building Xcode MCP Tap..."
 xcodebuild -project "$SCRIPT_DIR/XcodeMCPTap.xcodeproj" \
   -scheme XcodeMCPTap \
   -configuration Release \
+  -skipMacroValidation \
   CONFIGURATION_BUILD_DIR="$BUILD_DIR" \
   CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
   CODE_SIGN_STYLE=Manual \

@@ -1,20 +1,13 @@
+import ComposableArchitecture
 import SwiftUI
 import XcodeMCPTapShared
 
 public struct ContentView: View {
-  @Bindable public var viewModel: StatusViewModel
-  @SceneStorage("sidebar.selection") private var rawSelection: String = SidebarItem.overview.rawValue
+  @Bindable public var store: StoreOf<AppFeature>
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
-  public init(viewModel: StatusViewModel) {
-    self.viewModel = viewModel
-  }
-
-  private var selection: Binding<SidebarItem> {
-    Binding(
-      get: { SidebarItem(rawValue: rawSelection) ?? .overview },
-      set: { rawSelection = $0.rawValue }
-    )
+  public init(store: StoreOf<AppFeature>) {
+    self.store = store
   }
 
   public var body: some View {
@@ -27,10 +20,11 @@ public struct ContentView: View {
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 680, minHeight: 400)
+    .task { await store.send(.task).finish() }
   }
 
   private var sidebar: some View {
-    List(selection: selection) {
+    List(selection: $store.selection) {
       ForEach(SidebarItem.allCases) { item in
         NavigationLink(value: item) {
           Label(item.title, systemImage: item.systemImage)
@@ -47,16 +41,16 @@ public struct ContentView: View {
 
   private var sidebarFooter: some View {
     HStack(spacing: 10) {
-      StatusDot(running: viewModel.isServiceRunning)
+      StatusDot(running: store.isServiceRunning)
       VStack(alignment: .leading, spacing: 1) {
-        Text(viewModel.isServiceRunning ? "Service running" : "Service stopped")
+        Text(store.isServiceRunning ? "Service running" : "Service stopped")
           .font(.caption.weight(.medium))
-        if viewModel.isServiceRunning, let uptime = viewModel.uptimeText {
+        if store.isServiceRunning, let uptime = store.uptimeText {
           Text("Up \(uptime)")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .monospacedDigit()
-        } else if !viewModel.isInstalled {
+        } else if !store.isInstalled {
           Text("Not installed")
             .font(.caption2)
             .foregroundStyle(.secondary)
@@ -75,28 +69,28 @@ public struct ContentView: View {
   private func badge(for item: SidebarItem) -> Int {
     switch item {
     case .overview: 0
-    case .tools: viewModel.tools.count
-    case .connections: viewModel.connections.count
+    case .tools: store.tools.tools.count
+    case .connections: store.connections.count
     case .settings: 0
     }
   }
 
   @ViewBuilder
   private var detail: some View {
-    switch selection.wrappedValue {
+    switch store.selection {
     case .overview:
-      OverviewView(viewModel: viewModel) { selection.wrappedValue = $0 }
+      OverviewView(store: store)
     case .tools:
-      ToolsView(viewModel: viewModel)
+      ToolsView(store: store.scope(state: \.tools, action: \.tools))
     case .connections:
-      ConnectionsView(viewModel: viewModel)
+      ConnectionsView(store: store)
     case .settings:
-      SettingsView(viewModel: viewModel)
+      SettingsView(store: store)
     }
   }
 }
 
-public enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
+public enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable {
   case overview
   case tools
   case connections
@@ -162,7 +156,7 @@ public struct StatusDot: View {
   }
 }
 
-public enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
+public enum ToolCategory: String, CaseIterable, Hashable, Identifiable, Sendable {
   case build = "Build & Run"
   case files = "Files"
   case workspace = "Workspace"
@@ -228,17 +222,17 @@ public func formatUptime(interval: TimeInterval) -> String {
 
 #if DEBUG
 #Preview("Running") {
-  ContentView(viewModel: StatusViewModel.previewRunning())
+  ContentView(store: Store(initialState: .previewRunning()) { AppFeature() })
     .frame(width: 960, height: 640)
 }
 
 #Preview("Idle") {
-  ContentView(viewModel: StatusViewModel.previewIdle())
+  ContentView(store: Store(initialState: .previewIdle()) { AppFeature() })
     .frame(width: 960, height: 640)
 }
 
 #Preview("Not installed") {
-  ContentView(viewModel: StatusViewModel.previewNotInstalled())
+  ContentView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
     .frame(width: 960, height: 640)
 }
 #endif
