@@ -1,10 +1,14 @@
 import SwiftUI
 import XcodeMCPTapShared
 
-struct ContentView: View {
-  @Bindable var viewModel: StatusViewModel
+public struct ContentView: View {
+  @Bindable public var viewModel: StatusViewModel
   @SceneStorage("sidebar.selection") private var rawSelection: String = SidebarItem.overview.rawValue
   @State private var columnVisibility: NavigationSplitViewVisibility = .all
+
+  public init(viewModel: StatusViewModel) {
+    self.viewModel = viewModel
+  }
 
   private var selection: Binding<SidebarItem> {
     Binding(
@@ -13,7 +17,7 @@ struct ContentView: View {
     )
   }
 
-  var body: some View {
+  public var body: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       sidebar
         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
@@ -24,8 +28,6 @@ struct ContentView: View {
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 680, minHeight: 400)
   }
-
-  // MARK: - Sidebar
 
   private var sidebar: some View {
     List(selection: selection) {
@@ -49,8 +51,8 @@ struct ContentView: View {
       VStack(alignment: .leading, spacing: 1) {
         Text(viewModel.isServiceRunning ? "Service running" : "Service stopped")
           .font(.caption.weight(.medium))
-        if viewModel.isServiceRunning, let health = viewModel.health {
-          Text("Up \(formatUptime(since: health.startedAt))")
+        if viewModel.isServiceRunning, let uptime = viewModel.uptimeText {
+          Text("Up \(uptime)")
             .font(.caption2)
             .foregroundStyle(.secondary)
             .monospacedDigit()
@@ -79,8 +81,6 @@ struct ContentView: View {
     }
   }
 
-  // MARK: - Detail
-
   @ViewBuilder
   private var detail: some View {
     switch selection.wrappedValue {
@@ -96,17 +96,15 @@ struct ContentView: View {
   }
 }
 
-// MARK: - Sidebar Item
-
-enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
+public enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
   case overview
   case tools
   case connections
   case settings
 
-  var id: String { rawValue }
+  public var id: String { rawValue }
 
-  var title: String {
+  public var title: String {
     switch self {
     case .overview: "Overview"
     case .tools: "Tools"
@@ -115,7 +113,7 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
     }
   }
 
-  var systemImage: String {
+  public var systemImage: String {
     switch self {
     case .overview: "gauge.with.dots.needle.bottom.50percent"
     case .tools: "wrench.and.screwdriver"
@@ -125,13 +123,15 @@ enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
   }
 }
 
-// MARK: - Status Dot
-
-struct StatusDot: View {
-  var running: Bool
+public struct StatusDot: View {
+  public var running: Bool
   @State private var pulse = false
 
-  var body: some View {
+  public init(running: Bool) {
+    self.running = running
+  }
+
+  public var body: some View {
     ZStack {
       if running {
         Circle()
@@ -162,17 +162,15 @@ struct StatusDot: View {
   }
 }
 
-// MARK: - Tool category
-
-enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
+public enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
   case build = "Build & Run"
   case files = "Files"
   case workspace = "Workspace"
   case other = "Other"
 
-  var id: String { rawValue }
+  public var id: String { rawValue }
 
-  var systemImage: String {
+  public var systemImage: String {
     switch self {
     case .build: "hammer.fill"
     case .files: "folder.fill"
@@ -181,7 +179,7 @@ enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
     }
   }
 
-  var tint: Color {
+  public var tint: Color {
     switch self {
     case .build: .orange
     case .files: .blue
@@ -190,7 +188,7 @@ enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
     }
   }
 
-  static func category(for toolName: String) -> ToolCategory {
+  public static func category(for toolName: String) -> ToolCategory {
     let n = toolName.lowercased()
     if n.contains("build") || n.contains("test") || n.contains("run") ||
       n.contains("preview") || n.contains("snippet") || n.contains("buildlog")
@@ -214,13 +212,11 @@ enum ToolCategory: String, CaseIterable, Hashable, Identifiable {
   }
 }
 
-// MARK: - Helpers
-
-func formatUptime(since date: Date) -> String {
-  let interval = max(0, Date().timeIntervalSince(date))
-  let hours = Int(interval) / 3600
-  let minutes = (Int(interval) % 3600) / 60
-  let seconds = Int(interval) % 60
+public func formatUptime(interval: TimeInterval) -> String {
+  let clamped = max(0, interval)
+  let hours = Int(clamped) / 3600
+  let minutes = (Int(clamped) % 3600) / 60
+  let seconds = Int(clamped) % 60
   if hours > 0 {
     return String(format: "%dh %02dm", hours, minutes)
   }

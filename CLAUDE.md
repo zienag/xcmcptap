@@ -36,14 +36,15 @@ Several projects on GitHub solve this same problem. Key reference implementation
 ## Build, Test & Install
 
 ```bash
-# Xcode project (primary — run xcodegen first)
-xcodegen generate                      # .xcodeproj is gitignored, must regenerate
+# Xcode project (primary)
+xcodegen generate                      # regen after target/build-setting changes in project.yml
 xcodebuild -scheme XcodeMCPTap         # Build .app bundle (debug)
 
 # SPM (libraries/tests)
 swift build                            # Build all SPM targets
 swift build -Xswiftc -warnings-as-errors  # Same, with warnings as errors
-swift test                             # Run XPC integration tests
+swift test                             # Run all SPM tests (XPC + UI snapshot)
+swift test --filter UISnapshotTests    # Run just snapshot tests
 
 # Install & distribute
 ./install.sh                           # Build release, sign, notarize, install to ~/Applications
@@ -56,23 +57,23 @@ NOTARIZE=false ./install.sh            # Skip notarization (local dev)
 
 ### Xcode Project
 
-The `.xcodeproj` is generated from `project.yml` via [XcodeGen](https://github.com/yonaskolb/XcodeGen). To regenerate after changing targets or build settings:
+The `.xcodeproj` is generated from `project.yml` via [XcodeGen](https://github.com/yonaskolb/XcodeGen) — `.xcodeproj` is gitignored, `project.yml` is the source of truth. `install.sh` regenerates it automatically before building. XcodeGen is a build dependency (`brew install xcodegen`).
 
-```bash
-brew install xcodegen    # one-time
-xcodegen generate        # regenerate .xcodeproj from project.yml
-```
-
-The `.xcodeproj` is gitignored — `project.yml` is the source of truth. `install.sh` regenerates it automatically before building. XcodeGen is a build dependency (`brew install xcodegen`).
+**Sources use Xcode 16 synchronized folders** (`projectFormat: xcode16_0` + `defaultSourceDirectoryType: syncedFolder`). Adding or removing a `.swift` file inside `App/` does **not** require regenerating — Xcode reads the folder directly. Run `xcodegen generate` only when you change `project.yml` itself (targets, build settings, dependencies, excludes).
 
 ### Testing
 
-All tests live in the `XPCTests` SPM test target (`Tests/XPCTests/`):
+All tests are SPM targets. Run via `swift test` or the Xcode scheme.
 
-- **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
-- **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
-- **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
-- **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
+- **`XPCTests`** (`Tests/XPCTests/`) — Service-layer integration tests.
+  - **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
+  - **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
+  - **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
+  - **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
+
+- **`UISnapshotTests`** (`Tests/UISnapshotTests/`) — SwiftUI snapshot tests against `XcodeMCPTapUI` using [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing). Pattern: host the view in `NSHostingController`, then `assertSnapshot(of: controller, as: .image(size:))`. Suite-level `.snapshots(record: .missing)` auto-records new baselines. Baselines live in `Tests/UISnapshotTests/__Snapshots__/<suite>/<test>.1.png` and are committed.
+
+**Snapshot determinism** — `StatusViewModel.previewRunning()` / `.previewIdle()` pin an injectable `nowProvider` to `Date(timeIntervalSince1970: 1_700_000_000)` and build `ServiceHealth.startedAt` relative to that, so `uptimeText` is byte-stable across runs. Never read `Date()` directly from a view — compute intervals via the VM's pinned clock instead. `StatusDot`'s `onAppear` pulse doesn't fire in snapshots (the hosting controller is never attached to a window), so the animation stays at its initial frame — if future tests attach the controller to a window, gate the pulse.
 
 **XPC session lifecycle:** `XPCSession` must be cancelled via `session.cancel(reason:)` before deallocation — otherwise it crashes with `_xpc_api_misuse`. Always use `defer { session.cancel(reason:) }`.
 
@@ -95,21 +96,23 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 
 ### Targets
 
-**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries only, no executables, no exclusions. `App/` is 100% Xcode — the app bundle and the two thin `@main` wrappers for the tool targets.
+**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries only, no executables, no exclusions. `App/` is Xcode-native: the `.app` bundle's `@main` entry point and the two thin `@main` tool wrappers. Everything else (views, viewmodel, installer) lives in the `XcodeMCPTapUI` library so it's importable by tests and previewable from any package consumer.
 
 **SPM libraries** (`Package.swift`, all under `Sources/`):
 
 - **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing). Used by every other target.
 - **XcodeMCPTapClient** (`Sources/Client/`) — Client logic: XPC session, stdin reader, stdout writer. Exposes `public enum ClientMain { public static func run() }`.
 - **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, plus `public enum ServiceMain { public static func run() }`. Imported by tests.
+- **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI layer. `ContentView`, `OverviewView`, `ToolsView`, `ConnectionsView`, `SettingsView`, `StatusDot`, `SidebarItem`, `ToolCategory`, `formatUptime(interval:)`, plus `StatusViewModel` (the `@Observable` model) and `ServiceInstaller`. `StatusViewModel` exposes an injectable `nowProvider: () -> Date` so previews and snapshot tests run on a pinned clock.
 - **xpc-test-echo-server** (`Sources/TestEchoServer/`) — Test helper that echoes `MCPLine` messages back with "echo:" prefix.
 - **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, Subprocess round-trip tests, MCP proxy tests.
+- **UISnapshotTests** (`Tests/UISnapshotTests/`) — Swift Testing suite: SwiftUI snapshot tests over `XcodeMCPTapUI`.
 
-**Xcode targets** (`project.yml`, all under `App/`):
+**Xcode targets** (`project.yml`):
 
-- **XcodeMCPTap** (`App/` except the `xcmcptap`/`xcmcptapd` subdirs) — macOS Application target. Uses `ServiceInstaller` for install/uninstall and `StatusViewModel` for the status window. Embeds `xcmcptapd` and `xcmcptap` in `Contents/MacOS/` via Copy Files. The app target's `sources` excludes the `xcmcptap`/`xcmcptapd` subdirs so they belong exclusively to their own tool targets.
-- **xcmcptap** (`App/xcmcptap/Xcmcptap.swift`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapClient; ClientMain.run()`.
-- **xcmcptapd** (`App/xcmcptapd/Xcmcptapd.swift`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapService; ServiceMain.run()`.
+- **XcodeMCPTap** (synced folder `App/`, with `xcmcptap`/`xcmcptapd` excluded) — macOS Application target. `App/XcodeMCPTapApp.swift` holds the `@main App` and imports `XcodeMCPTapUI`. Embeds `xcmcptapd` and `xcmcptap` in `Contents/MacOS/` via Copy Files. The excludes are emitted as a `PBXFileSystemSynchronizedBuildFileExceptionSet` so those subdirs belong exclusively to their own tool targets.
+- **xcmcptap** (synced folder `App/xcmcptap/`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapClient; ClientMain.run()`.
+- **xcmcptapd** (synced folder `App/xcmcptapd/`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapService; ServiceMain.run()`.
 
 **Why the tool targets are Xcode-native (not SPM executables):** SPM-built executables get `com.apple.security.get-task-allow` injected into their entitlements in Release builds, and `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` at the xcodebuild level does not propagate to SPM products. That entitlement fails notarization. Xcode-native tool targets respect the setting cleanly, so `project.yml` sets `CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO` at the project level and `OTHER_CODE_SIGN_FLAGS: --timestamp` in the Release config. No post-build re-signing hacks needed.
 

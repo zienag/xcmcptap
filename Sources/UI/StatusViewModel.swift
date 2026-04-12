@@ -7,37 +7,42 @@ import XPC
 import XcodeMCPTapShared
 
 @MainActor @Observable
-final class StatusViewModel {
-  var connections: [ConnectionInfo] = []
-  var health: ServiceHealth?
-  var tools: [ToolInfo] = []
-  var isServiceRunning = false
-  var isInstalled: Bool
+public final class StatusViewModel {
+  public var connections: [ConnectionInfo] = []
+  public var health: ServiceHealth?
+  public var tools: [ToolInfo] = []
+  public var isServiceRunning = false
+  public var isInstalled: Bool
 
-  var clientPath: String { ServiceInstaller.clientLinkPath }
-  var plistPath: String { ServiceInstaller.plistPath }
-  var logPath: String { ServiceInstaller.logPath }
+  @ObservationIgnored
+  public var nowProvider: () -> Date = { Date() }
 
-  var mcpConfigCommand: String {
+  public var clientPath: String { ServiceInstaller.clientLinkPath }
+  public var plistPath: String { ServiceInstaller.plistPath }
+  public var logPath: String { ServiceInstaller.logPath }
+
+  public var mcpConfigCommand: String {
     "claude mcp add --transport stdio xcode -- \(ServiceInstaller.clientLinkPath)"
+  }
+
+  public var uptimeText: String? {
+    guard let health else { return nil }
+    let interval = max(0, nowProvider().timeIntervalSince(health.startedAt))
+    return formatUptime(interval: interval)
   }
 
   private var session: XPCSession?
   private var pollTask: Task<Void, Never>?
 
-  init() {
+  public init() {
     self.isInstalled = FileManager.default.fileExists(atPath: ServiceInstaller.plistPath)
     startPolling()
   }
 
-  #if DEBUG
   /// Builds a model with no XPC polling for use in SwiftUI previews and snapshot tests.
-  init(previewing _: Void) {
+  public init(previewing _: Void) {
     self.isInstalled = false
   }
-  #endif
-
-  // MARK: - Polling
 
   private func startPolling() {
     pollTask = Task { [weak self] in
@@ -103,9 +108,7 @@ final class StatusViewModel {
     }
   }
 
-  // MARK: - Actions
-
-  func install() {
+  public func install() {
     ServiceInstaller.install()
     isInstalled = true
     session = nil
@@ -115,7 +118,7 @@ final class StatusViewModel {
     }
   }
 
-  func uninstall() {
+  public func uninstall() {
     session?.cancel(reason: "uninstalling")
     session = nil
     ServiceInstaller.uninstall()
@@ -125,50 +128,57 @@ final class StatusViewModel {
     health = nil
   }
 
-  func copyConfigCommand() {
+  public func copyConfigCommand() {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(mcpConfigCommand, forType: .string)
   }
 }
 
-#if DEBUG
 extension StatusViewModel {
-  static func previewRunning() -> StatusViewModel {
+  /// Fixed reference time for deterministic previews and snapshot tests.
+  static let previewNow = Date(timeIntervalSince1970: 1_700_000_000)
+
+  public static func previewRunning() -> StatusViewModel {
+    let now = previewNow
     let model = StatusViewModel(previewing: ())
+    model.nowProvider = { now }
     model.isInstalled = true
     model.isServiceRunning = true
     model.tools = sampleTools
-    model.connections = sampleConnections
+    model.connections = sampleConnections(relativeTo: now)
     model.health = ServiceHealth(
-      startedAt: Date().addingTimeInterval(-(2 * 3600 + 47 * 60 + 12)),
+      startedAt: now.addingTimeInterval(-(2 * 3600 + 47 * 60 + 12)),
       totalConnectionsServed: 18,
-      activeConnectionCount: sampleConnections.count
+      activeConnectionCount: model.connections.count
     )
     return model
   }
 
-  static func previewIdle() -> StatusViewModel {
+  public static func previewIdle() -> StatusViewModel {
+    let now = previewNow
     let model = StatusViewModel(previewing: ())
+    model.nowProvider = { now }
     model.isInstalled = true
     model.isServiceRunning = true
     model.tools = sampleTools
     model.connections = []
     model.health = ServiceHealth(
-      startedAt: Date().addingTimeInterval(-42),
+      startedAt: now.addingTimeInterval(-42),
       totalConnectionsServed: 0,
       activeConnectionCount: 0
     )
     return model
   }
 
-  static func previewNotInstalled() -> StatusViewModel {
+  public static func previewNotInstalled() -> StatusViewModel {
     let model = StatusViewModel(previewing: ())
+    model.nowProvider = { previewNow }
     model.isInstalled = false
     model.isServiceRunning = false
     return model
   }
 
-  static let sampleTools: [ToolInfo] = [
+  public static let sampleTools: [ToolInfo] = [
     .init(name: "BuildProject", description: "Builds an Xcode project and waits until the build completes."),
     .init(name: "GetBuildLog", description: "Gets the log of the current or most recently finished build with optional filtering."),
     .init(name: "GetTestList", description: "Returns the test list discovered for the current scheme."),
@@ -191,28 +201,29 @@ extension StatusViewModel {
     .init(name: "XcodeRefreshCodeIssuesInFile", description: "Forces Xcode to refresh diagnostics for a single file."),
   ]
 
-  static let sampleConnections: [ConnectionInfo] = [
-    .init(
-      id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
-      connectedAt: Date().addingTimeInterval(-1247),
-      messagesRouted: 184,
-      lastActivityAt: Date().addingTimeInterval(-2),
-      bridgePID: 81234
-    ),
-    .init(
-      id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
-      connectedAt: Date().addingTimeInterval(-312),
-      messagesRouted: 27,
-      lastActivityAt: Date().addingTimeInterval(-58),
-      bridgePID: 81245
-    ),
-    .init(
-      id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
-      connectedAt: Date().addingTimeInterval(-44),
-      messagesRouted: 4,
-      lastActivityAt: Date().addingTimeInterval(-12),
-      bridgePID: 81260
-    ),
-  ]
+  public static func sampleConnections(relativeTo now: Date) -> [ConnectionInfo] {
+    [
+      .init(
+        id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+        connectedAt: now.addingTimeInterval(-1247),
+        messagesRouted: 184,
+        lastActivityAt: now.addingTimeInterval(-2),
+        bridgePID: 81234
+      ),
+      .init(
+        id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
+        connectedAt: now.addingTimeInterval(-312),
+        messagesRouted: 27,
+        lastActivityAt: now.addingTimeInterval(-58),
+        bridgePID: 81245
+      ),
+      .init(
+        id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
+        connectedAt: now.addingTimeInterval(-44),
+        messagesRouted: 4,
+        lastActivityAt: now.addingTimeInterval(-12),
+        bridgePID: 81260
+      ),
+    ]
+  }
 }
-#endif

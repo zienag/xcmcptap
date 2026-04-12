@@ -1,10 +1,14 @@
 import SwiftUI
 import XcodeMCPTapShared
 
-struct ToolsView: View {
-  @Bindable var viewModel: StatusViewModel
+public struct ToolsView: View {
+  @Bindable public var viewModel: StatusViewModel
   @State private var searchText = ""
   @State private var selectedToolID: String?
+
+  public init(viewModel: StatusViewModel) {
+    self.viewModel = viewModel
+  }
 
   private var filteredTools: [ToolInfo] {
     let trimmed = searchText.trimmingCharacters(in: .whitespaces)
@@ -28,7 +32,7 @@ struct ToolsView: View {
     return viewModel.tools.first { $0.id == id }
   }
 
-  var body: some View {
+  public var body: some View {
     Group {
       if viewModel.tools.isEmpty {
         ContentUnavailableView("No tools", systemImage: "wrench.and.screwdriver")
@@ -47,8 +51,6 @@ struct ToolsView: View {
     .onChange(of: searchText) { _, _ in selectFirstIfNeeded() }
     .onChange(of: viewModel.tools.count) { _, _ in selectFirstIfNeeded() }
   }
-
-  // MARK: - List
 
   private var toolList: some View {
     List(selection: $selectedToolID) {
@@ -80,8 +82,6 @@ struct ToolsView: View {
     }
   }
 
-  // MARK: - Detail
-
   @ViewBuilder
   private var toolDetail: some View {
     if let tool = selectedTool {
@@ -99,8 +99,6 @@ struct ToolsView: View {
     selectedToolID = filteredTools.first?.id
   }
 }
-
-// MARK: - Row
 
 private struct ToolListRow: View {
   var tool: ToolInfo
@@ -121,8 +119,6 @@ private struct ToolListRow: View {
     .padding(.vertical, 3)
   }
 }
-
-// MARK: - Detail
 
 private struct ToolDetailView: View {
   var tool: ToolInfo

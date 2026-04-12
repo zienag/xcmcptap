@@ -1,13 +1,18 @@
 import SwiftUI
 import XcodeMCPTapShared
 
-struct ConnectionsView: View {
-  @Bindable var viewModel: StatusViewModel
-  @State private var now: Date = .now
+public struct ConnectionsView: View {
+  @Bindable public var viewModel: StatusViewModel
+  @State private var now: Date
 
   private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
-  var body: some View {
+  public init(viewModel: StatusViewModel) {
+    self.viewModel = viewModel
+    self._now = State(initialValue: viewModel.nowProvider())
+  }
+
+  public var body: some View {
     Group {
       if viewModel.connections.isEmpty {
         ContentUnavailableView(
@@ -30,8 +35,6 @@ struct ConnectionsView: View {
     .onReceive(timer) { now = $0 }
   }
 }
-
-// MARK: - Row
 
 private struct ConnectionRow: View {
   var connection: ConnectionInfo
@@ -64,7 +67,7 @@ private struct ConnectionRow: View {
         .font(.system(.callout, design: .monospaced))
         .frame(width: 110, alignment: .leading)
 
-      Text(formatUptime(since: connection.connectedAt))
+      Text(formatUptime(interval: now.timeIntervalSince(connection.connectedAt)))
         .font(.caption)
         .foregroundStyle(.secondary)
         .monospacedDigit()

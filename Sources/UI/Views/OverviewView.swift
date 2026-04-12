@@ -1,11 +1,16 @@
 import SwiftUI
 import XcodeMCPTapShared
 
-struct OverviewView: View {
-  @Bindable var viewModel: StatusViewModel
-  var navigate: (SidebarItem) -> Void
+public struct OverviewView: View {
+  @Bindable public var viewModel: StatusViewModel
+  public var navigate: (SidebarItem) -> Void
 
-  var body: some View {
+  public init(viewModel: StatusViewModel, navigate: @escaping (SidebarItem) -> Void) {
+    self.viewModel = viewModel
+    self.navigate = navigate
+  }
+
+  public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
         statusBar
@@ -17,16 +22,14 @@ struct OverviewView: View {
     .navigationTitle("Overview")
   }
 
-  // MARK: - Status bar
-
   private var statusBar: some View {
     HStack(spacing: 10) {
       StatusDot(running: viewModel.isServiceRunning)
       Text(statusText)
         .font(.headline)
       Spacer(minLength: 8)
-      if viewModel.isServiceRunning, let health = viewModel.health {
-        Label(formatUptime(since: health.startedAt), systemImage: "clock")
+      if viewModel.isServiceRunning, let uptime = viewModel.uptimeText {
+        Label(uptime, systemImage: "clock")
           .labelStyle(.titleAndIcon)
           .font(.subheadline)
           .foregroundStyle(.secondary)
@@ -51,8 +54,6 @@ struct OverviewView: View {
     if viewModel.isInstalled { return "Service stopped" }
     return "Service not installed"
   }
-
-  // MARK: - Stats
 
   private var statsGrid: some View {
     LazyVGrid(
@@ -90,17 +91,29 @@ struct OverviewView: View {
   }
 }
 
-// MARK: - Stat tile
-
-struct StatTile: View {
-  var label: String
-  var value: String
-  var icon: String
-  var tint: Color
-  var action: (() -> Void)? = nil
+public struct StatTile: View {
+  public var label: String
+  public var value: String
+  public var icon: String
+  public var tint: Color
+  public var action: (() -> Void)?
   @State private var hovered = false
 
-  var body: some View {
+  public init(
+    label: String,
+    value: String,
+    icon: String,
+    tint: Color,
+    action: (() -> Void)? = nil
+  ) {
+    self.label = label
+    self.value = value
+    self.icon = icon
+    self.tint = tint
+    self.action = action
+  }
+
+  public var body: some View {
     let content = HStack(alignment: .center, spacing: 10) {
       Image(systemName: icon)
         .font(.system(size: 13, weight: .semibold))

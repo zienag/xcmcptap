@@ -2,6 +2,9 @@ name: XcodeMCPTap
 options:
   deploymentTarget:
     macOS: "26.0"
+  createIntermediateGroups: true
+  projectFormat: xcode16_0
+  defaultSourceDirectoryType: syncedFolder
 
 settings:
   base:
@@ -30,7 +33,7 @@ targets:
           - xcmcptapd
     dependencies:
       - package: XcodeMCPTapPackage
-        product: XcodeMCPTapShared
+        product: XcodeMCPTapUI
       - target: xcmcptapd
         embed: true
         codeSign: false

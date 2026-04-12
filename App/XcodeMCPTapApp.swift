@@ -1,4 +1,5 @@
 import SwiftUI
+import XcodeMCPTapUI
 
 @main
 struct XcodeMCPTapApp: App {

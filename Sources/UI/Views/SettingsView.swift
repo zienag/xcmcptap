@@ -2,13 +2,17 @@ import AppKit
 import SwiftUI
 import XcodeMCPTapShared
 
-struct SettingsView: View {
-  @Bindable var viewModel: StatusViewModel
+public struct SettingsView: View {
+  @Bindable public var viewModel: StatusViewModel
   @State private var copied = false
   @State private var copyResetTask: Task<Void, Never>?
   @State private var showingUninstallConfirm = false
 
-  var body: some View {
+  public init(viewModel: StatusViewModel) {
+    self.viewModel = viewModel
+  }
+
+  public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 14) {
         configCard
@@ -30,8 +34,6 @@ struct SettingsView: View {
       Text("Removes the launch agent and xcmcptap symlink.")
     }
   }
-
-  // MARK: - Config card
 
   private var configCard: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -74,8 +76,6 @@ struct SettingsView: View {
     }
   }
 
-  // MARK: - Paths card
-
   private var pathsCard: some View {
     VStack(alignment: .leading, spacing: 8) {
       SectionLabel("Paths")
@@ -94,8 +94,6 @@ struct SettingsView: View {
     }
   }
 
-  // MARK: - Actions row
-
   private var actionsRow: some View {
     HStack(spacing: 8) {
       if viewModel.isInstalled {
@@ -111,8 +109,6 @@ struct SettingsView: View {
   }
 }
 
-// MARK: - Section label
-
 private struct SectionLabel: View {
   var text: String
 
@@ -125,8 +121,6 @@ private struct SectionLabel: View {
       .tracking(0.4)
   }
 }
-
-// MARK: - Path row
 
 private struct PathRow: View {
   var label: String

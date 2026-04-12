@@ -8,9 +8,11 @@ let package = Package(
     .library(name: "XcodeMCPTapShared", targets: ["XcodeMCPTapShared"]),
     .library(name: "XcodeMCPTapClient", targets: ["XcodeMCPTapClient"]),
     .library(name: "XcodeMCPTapService", targets: ["XcodeMCPTapService"]),
+    .library(name: "XcodeMCPTapUI", targets: ["XcodeMCPTapUI"]),
   ],
   dependencies: [
     .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.4.0"),
+    .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
   ],
   targets: [
     .target(name: "XcodeMCPTapShared", path: "Sources/Shared"),
@@ -27,6 +29,11 @@ let package = Package(
       ],
       path: "Sources/Service"
     ),
+    .target(
+      name: "XcodeMCPTapUI",
+      dependencies: ["XcodeMCPTapShared"],
+      path: "Sources/UI"
+    ),
     .executableTarget(
       name: "xpc-test-echo-server",
       dependencies: ["XcodeMCPTapShared"],
@@ -40,6 +47,14 @@ let package = Package(
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
       path: "Tests/XPCTests"
+    ),
+    .testTarget(
+      name: "UISnapshotTests",
+      dependencies: [
+        "XcodeMCPTapUI",
+        .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+      ],
+      path: "Tests/UISnapshotTests"
     ),
   ]
 )
