@@ -11,14 +11,7 @@ import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct SubprocessRoundTripTests {
-  static let mockBridge: String = {
-    URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("mock-mcpbridge.py")
-      .path
-  }()
+  static let mockBridge: String = MockBridge.path()
 
   static let initRequest = #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
 

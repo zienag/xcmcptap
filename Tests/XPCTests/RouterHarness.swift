@@ -68,14 +68,15 @@ final class RouterHarness {
   }
 }
 
-/// Absolute paths to test helper scripts, resolved relative to the test
-/// file location.
+/// Absolute paths to test helper scripts under `scripts/`, resolved
+/// relative to the test file location.
 enum TestScripts {
   static func path(_ name: String, from file: StaticString = #filePath) -> String {
     var p = FilePath("\(file)")
     p.removeLastComponent()
     p.removeLastComponent()
     p.removeLastComponent()
+    p.append("scripts")
     p.append(name)
     return p.string
   }

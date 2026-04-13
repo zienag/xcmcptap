@@ -65,9 +65,9 @@ The `.xcodeproj` is generated from `project.yml` via [XcodeGen](https://github.c
 All tests are SPM targets. Run via `swift test` or the Xcode scheme.
 
 - **`XPCTests`** (`Tests/XPCTests/`) — Service-layer integration tests.
-  - **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
+  - **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `scripts/mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
   - **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
-  - **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
+  - **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `scripts/mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
   - **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
 
 - **`UISnapshotTests`** (`Tests/UISnapshotTests/`) — SwiftUI snapshot tests against `XcodeMCPTapUI` using [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing). Pattern: host the view in `NSHostingController`, then `assertSnapshot(of: controller, as: .image(size:))`. Suite-level `.snapshots(record: .missing)` auto-records new baselines. Baselines live in `Tests/UISnapshotTests/__Snapshots__/<suite>/<test>.1.png` and are committed.

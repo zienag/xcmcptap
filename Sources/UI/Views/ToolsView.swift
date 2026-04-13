@@ -5,6 +5,10 @@ import XcodeMCPTapShared
 public struct ToolsView: View {
   @Bindable public var store: StoreOf<ToolsFeature>
 
+  private enum Layout {
+    static let toolListWidth: CGFloat = 280
+  }
+
   public init(store: StoreOf<ToolsFeature>) {
     self.store = store
   }
@@ -14,11 +18,12 @@ public struct ToolsView: View {
       if store.tools.isEmpty {
         ContentUnavailableView("No tools", systemImage: "wrench.and.screwdriver")
       } else {
-        HSplitView {
+        HStack(spacing: 0) {
           toolList
-            .frame(minWidth: 240, idealWidth: 300)
+            .frame(width: Layout.toolListWidth)
+          Divider()
           toolDetail
-            .frame(minWidth: 280)
+            .frame(maxWidth: .infinity)
         }
       }
     }

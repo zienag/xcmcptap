@@ -16,7 +16,6 @@ public struct ContentView: View {
         .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
     } detail: {
       detail
-        .navigationSplitViewColumnWidth(min: 440, ideal: 560)
     }
     .navigationSplitViewStyle(.balanced)
     .frame(minWidth: 680, minHeight: 400)
@@ -26,10 +25,9 @@ public struct ContentView: View {
   private var sidebar: some View {
     List(selection: $store.selection) {
       ForEach(SidebarItem.allCases) { item in
-        NavigationLink(value: item) {
-          Label(item.title, systemImage: item.systemImage)
-        }
-        .badge(badge(for: item))
+        Label(item.title, systemImage: item.systemImage)
+          .badge(badge(for: item))
+          .tag(item)
       }
     }
     .listStyle(.sidebar)
