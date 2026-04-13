@@ -47,8 +47,8 @@ VOLUME_NAME = "XcodeMCPTap"
 
 WINDOW_BOUNDS = "{{400, 100}, {600, 300}}"
 ICON_SIZE = 100.0
-APP_POSITION = (150, 150)
-APPS_POSITION = (450, 150)
+APP_POSITION = (150, 120)
+APPS_POSITION = (450, 120)
 
 
 def write_ds_store(path: Path) -> None:
