@@ -14,6 +14,7 @@ public struct AppFeature {
     public var logPath: String = ServiceInstaller.logPath
     public var now: Date = .distantPast
     public var plistPath: String = ServiceInstaller.plistPath
+    public var requiresApproval: Bool = false
     public var selection: SidebarItem = .overview
     public var settings: SettingsFeature.State = .init()
     public var tools: ToolsFeature.State = .init()
@@ -24,6 +25,7 @@ public struct AppFeature {
       isInstalled: Bool = false,
       isServiceRunning: Bool = false,
       now: Date = .distantPast,
+      requiresApproval: Bool = false,
       selection: SidebarItem = .overview,
       settings: SettingsFeature.State = .init(),
       tools: ToolsFeature.State = .init()
@@ -33,13 +35,14 @@ public struct AppFeature {
       self.isInstalled = isInstalled
       self.isServiceRunning = isServiceRunning
       self.now = now
+      self.requiresApproval = requiresApproval
       self.selection = selection
       self.settings = settings
       self.tools = tools
     }
 
-    public var mcpConfigCommand: String {
-      "claude mcp add --transport stdio xcode -- \(clientPath)"
+    public var integrations: [Integration] {
+      Integration.all(clientPath: clientPath)
     }
 
     public var uptimeText: String? {
@@ -56,7 +59,9 @@ public struct AppFeature {
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case clockTick(Date)
+    case installStatusRefreshed(isInstalled: Bool, requiresApproval: Bool)
     case installTapped
+    case openLoginItemsTapped
     case settings(SettingsFeature.Action)
     case statusEvent(StatusEvent)
     case statusFetchFailed
@@ -95,8 +100,17 @@ public struct AppFeature {
         state.now = date
         return .none
 
+      case .installStatusRefreshed(let isInstalled, let requiresApproval):
+        state.isInstalled = isInstalled
+        state.requiresApproval = requiresApproval
+        return .none
+
       case .installTapped:
         return install(&state)
+
+      case .openLoginItemsTapped:
+        serviceInstaller.openLoginItems()
+        return .none
 
       case .settings(.delegate(.install)):
         return install(&state)
@@ -104,6 +118,7 @@ public struct AppFeature {
       case .settings(.delegate(.uninstall)):
         serviceInstaller.uninstall()
         state.isInstalled = false
+        state.requiresApproval = false
         state.isServiceRunning = false
         state.connections = []
         state.health = nil
@@ -140,6 +155,7 @@ public struct AppFeature {
       case .task:
         state.now = nowProvider
         state.isInstalled = serviceInstaller.isInstalled()
+        state.requiresApproval = serviceInstaller.requiresApproval()
         return .merge(
           poll(),
           subscribeToEvents(),
@@ -154,11 +170,19 @@ public struct AppFeature {
 
   private func install(_ state: inout State) -> Effect<Action> {
     serviceInstaller.install()
-    state.isInstalled = true
+    state.isInstalled = serviceInstaller.isInstalled()
+    state.requiresApproval = serviceInstaller.requiresApproval()
     let clock = self.clock
     let statusClient = self.statusClient
+    let installer = self.serviceInstaller
     return .run { send in
       try? await clock.sleep(for: .seconds(1))
+      await send(
+        .installStatusRefreshed(
+          isInstalled: installer.isInstalled(),
+          requiresApproval: installer.requiresApproval()
+        )
+      )
       await Self.fetchOnce(statusClient: statusClient, send: send)
     }
   }
@@ -166,8 +190,15 @@ public struct AppFeature {
   private func poll() -> Effect<Action> {
     let clock = self.clock
     let statusClient = self.statusClient
+    let installer = self.serviceInstaller
     return .run { send in
       while !Task.isCancelled {
+        await send(
+          .installStatusRefreshed(
+            isInstalled: installer.isInstalled(),
+            requiresApproval: installer.requiresApproval()
+          )
+        )
         await Self.fetchOnce(statusClient: statusClient, send: send)
         try? await clock.sleep(for: .seconds(2))
       }

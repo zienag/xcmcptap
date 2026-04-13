@@ -35,6 +35,12 @@ targets:
         excludes:
           - xcmcptap
           - xcmcptapd
+          - LaunchAgents
+      - path: App/LaunchAgents/alfred.xcmcptap.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchAgents
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapUI

@@ -131,6 +131,8 @@ struct AppFeatureTests {
       $0.continuousClock = clock
       $0.statusClient.fetch = { response }
       $0.serviceInstaller.install = { installCalls.withValue { $0 += 1 } }
+      $0.serviceInstaller.isInstalled = { true }
+      $0.serviceInstaller.requiresApproval = { false }
     }
 
     await store.send(.installTapped) {
@@ -140,6 +142,8 @@ struct AppFeatureTests {
     #expect(installCalls.value == 1)
 
     await clock.advance(by: .seconds(1))
+
+    await store.receive(\.installStatusRefreshed)
 
     await store.receive(\.statusResponse) {
       $0.health = testHealth
@@ -189,6 +193,8 @@ struct AppFeatureTests {
         StatusResponse(connections: [], health: testHealth, tools: [])
       }
       $0.serviceInstaller.install = { installCalls.withValue { $0 += 1 } }
+      $0.serviceInstaller.isInstalled = { true }
+      $0.serviceInstaller.requiresApproval = { false }
     }
 
     await store.send(.settings(.delegate(.install))) {
@@ -198,6 +204,8 @@ struct AppFeatureTests {
     #expect(installCalls.value == 1)
 
     await clock.advance(by: .seconds(1))
+
+    await store.receive(\.installStatusRefreshed)
 
     await store.receive(\.statusResponse) {
       $0.health = testHealth

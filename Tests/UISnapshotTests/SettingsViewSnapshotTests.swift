@@ -7,7 +7,7 @@ import XcodeMCPTapUI
 @MainActor
 @Suite(.snapshots(record: .missing))
 struct SettingsViewSnapshotTests {
-  static let size = CGSize(width: 640, height: 380)
+  static let size = CGSize(width: 720, height: 560)
 
   @Test
   func installed() {
@@ -34,7 +34,7 @@ struct SettingsViewSnapshotTests {
   @Test
   func copied() {
     var state = AppFeature.State.previewRunning()
-    state.settings.copied = true
+    state.settings.copiedIntegrationID = "claude"
     let controller = NSHostingController(
       rootView: SettingsView(store: Store(initialState: state) { AppFeature() })
     )

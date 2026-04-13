@@ -4,19 +4,19 @@ import ComposableArchitecture
 public struct SettingsFeature {
   @ObservableState
   public struct State: Equatable {
-    public var copied: Bool = false
+    public var copiedIntegrationID: String?
     public var showingUninstallConfirm: Bool = false
 
-    public init(copied: Bool = false, showingUninstallConfirm: Bool = false) {
-      self.copied = copied
+    public init(copiedIntegrationID: String? = nil, showingUninstallConfirm: Bool = false) {
+      self.copiedIntegrationID = copiedIntegrationID
       self.showingUninstallConfirm = showingUninstallConfirm
     }
   }
 
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
-    case copyResetElapsed
-    case copyTapped
+    case copyResetElapsed(id: String)
+    case copyTapped(id: String, command: String)
     case delegate(Delegate)
     case installTapped
     case uninstallCancelled
@@ -44,20 +44,21 @@ public struct SettingsFeature {
       case .binding:
         return .none
 
-      case .copyTapped:
-        state.copied = true
-        let command = "claude mcp add --transport stdio xcode -- \(ServiceInstaller.clientLinkPath)"
+      case .copyTapped(let id, let command):
+        state.copiedIntegrationID = id
         let clock = self.clock
         let pasteboard = self.pasteboard
         return .run { send in
           pasteboard.copy(command)
           try await clock.sleep(for: .seconds(1.2))
-          await send(.copyResetElapsed)
+          await send(.copyResetElapsed(id: id))
         }
         .cancellable(id: CancelID.copyReset, cancelInFlight: true)
 
-      case .copyResetElapsed:
-        state.copied = false
+      case .copyResetElapsed(let id):
+        if state.copiedIntegrationID == id {
+          state.copiedIntegrationID = nil
+        }
         return .none
 
       case .installTapped:

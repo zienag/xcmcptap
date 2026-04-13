@@ -1,12 +1,15 @@
 import ComposableArchitecture
-import class Foundation.FileManager
 
 @DependencyClient
 public struct ServiceInstallerClient: Sendable {
   public var install: @Sendable () -> Void
   public var uninstall: @Sendable () -> Void
   public var isInstalled: @Sendable () -> Bool = { false }
+  public var requiresApproval: @Sendable () -> Bool = { false }
+  public var openLoginItems: @Sendable () -> Void
+  public var isOnSystemPath: @Sendable () -> Bool = { false }
   public var clientPath: @Sendable () -> String = { "" }
+  public var systemPath: @Sendable () -> String = { "" }
   public var plistPath: @Sendable () -> String = { "" }
   public var logPath: @Sendable () -> String = { "" }
 }
@@ -15,8 +18,12 @@ extension ServiceInstallerClient: DependencyKey {
   public static let liveValue = ServiceInstallerClient(
     install: { ServiceInstaller.install() },
     uninstall: { ServiceInstaller.uninstall() },
-    isInstalled: { FileManager.default.fileExists(atPath: ServiceInstaller.plistPath) },
+    isInstalled: { ServiceInstaller.isInstalled() },
+    requiresApproval: { ServiceInstaller.requiresApproval() },
+    openLoginItems: { ServiceInstaller.openLoginItems() },
+    isOnSystemPath: { ServiceInstaller.isOnSystemPath() },
     clientPath: { ServiceInstaller.clientLinkPath },
+    systemPath: { ServiceInstaller.systemLinkPath },
     plistPath: { ServiceInstaller.plistPath },
     logPath: { ServiceInstaller.logPath }
   )

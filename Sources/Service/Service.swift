@@ -1,11 +1,27 @@
 import Darwin
+import class Foundation.FileManager
+import func Foundation.NSHomeDirectory
 import struct Foundation.UUID
 import Synchronization
 import XPC
 import XcodeMCPTapShared
 
 public enum ServiceMain {
+  /// Redirects stdout/stderr to a per-user log file. The bundled LaunchAgent
+  /// plist can't express `$HOME`-relative paths, so we do the redirect here
+  /// instead of via `StandardOutPath`/`StandardErrorPath`.
+  private static func redirectLogsToHomeLogDir() {
+    let logDir = NSHomeDirectory() + "/Library/Logs"
+    try? FileManager.default.createDirectory(atPath: logDir, withIntermediateDirectories: true)
+    let logPath = logDir + "/\(MCPTap.serviceName).log"
+    _ = logPath.withCString { freopen($0, "a", stdout) }
+    _ = logPath.withCString { freopen($0, "a", stderr) }
+    setbuf(stdout, nil)
+    setbuf(stderr, nil)
+  }
+
   public static func run() {
+    redirectLogsToHomeLogDir()
     fputs("[service] starting\n", stderr)
 
     let registry = ConnectionRegistry()

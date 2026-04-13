@@ -5,13 +5,52 @@ import class Foundation.FileManager
 import class Foundation.Process
 import func Foundation.NSHomeDirectory
 import struct Foundation.URL
+import ServiceManagement
 import XcodeMCPTapShared
 
 public enum ServiceInstaller {
   private static let uid = getuid()
-  public static let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(MCPTap.serviceName).plist"
+  private static let agentPlistName = "\(MCPTap.serviceName).plist"
+  private static let legacyPlistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(MCPTap.serviceName).plist"
+
   public static let clientLinkPath = NSHomeDirectory() + "/.local/bin/xcmcptap"
+  public static let systemLinkPath = "/usr/local/bin/xcmcptap"
+  public static let systemLinkName = "xcmcptap"
   public static let logPath = NSHomeDirectory() + "/Library/Logs/\(MCPTap.serviceName).log"
+
+  /// Path to the bundled plist we register with SMAppService. Points inside the running .app bundle.
+  public static var plistPath: String {
+    Bundle.main.bundleURL
+      .appendingPathComponent("Contents/Library/LaunchAgents/\(agentPlistName)")
+      .path
+  }
+
+  private static var agentService: SMAppService {
+    SMAppService.agent(plistName: agentPlistName)
+  }
+
+  public static func isInstalled() -> Bool {
+    switch agentService.status {
+    case .enabled, .requiresApproval:
+      return true
+    case .notRegistered, .notFound:
+      return false
+    @unknown default:
+      return false
+    }
+  }
+
+  public static func requiresApproval() -> Bool {
+    agentService.status == .requiresApproval
+  }
+
+  public static func openLoginItems() {
+    SMAppService.openSystemSettingsLoginItems()
+  }
+
+  public static func isOnSystemPath() -> Bool {
+    (try? FileManager.default.attributesOfItem(atPath: systemLinkPath)) != nil
+  }
 
   public static func install() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
@@ -19,50 +58,18 @@ public enum ServiceInstaller {
       return
     }
 
-    let servicePath = Bundle.main.executableURL!
-      .deletingLastPathComponent()
-      .appendingPathComponent("xcmcptapd").path
     let clientPath = Bundle.main.executableURL!
       .deletingLastPathComponent()
       .appendingPathComponent("xcmcptap").path
 
-    run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")
-
-    let plist = """
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
-      <dict>
-        <key>Label</key>
-        <string>\(MCPTap.serviceName)</string>
-        <key>ProgramArguments</key>
-        <array>
-          <string>\(servicePath)</string>
-        </array>
-        <key>MachServices</key>
-        <dict>
-          <key>\(MCPTap.serviceName)</key>
-          <true/>
-          <key>\(MCPTap.statusServiceName)</key>
-          <true/>
-        </dict>
-        <key>StandardOutPath</key>
-        <string>\(logPath)</string>
-        <key>StandardErrorPath</key>
-        <string>\(logPath)</string>
-      </dict>
-      </plist>
-      """
+    cleanUpLegacyAgent()
 
     do {
-      try plist.write(toFile: plistPath, atomically: true, encoding: .utf8)
+      try agentService.register()
     } catch {
-      fputs("Failed to write LaunchAgent: \(error)\n", stderr)
+      fputs("SMAppService register failed: \(error)\n", stderr)
       return
     }
-
-    run("/bin/launchctl", "bootstrap", "gui/\(uid)", plistPath)
-    run("/bin/launchctl", "kickstart", "gui/\(uid)/\(MCPTap.serviceName)")
 
     let linkDir = URL(fileURLWithPath: clientLinkPath).deletingLastPathComponent().path
     try? FileManager.default.createDirectory(atPath: linkDir, withIntermediateDirectories: true)
@@ -71,9 +78,23 @@ public enum ServiceInstaller {
   }
 
   public static func uninstall() {
-    run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")
-    try? FileManager.default.removeItem(atPath: plistPath)
+    do {
+      try agentService.unregister()
+    } catch {
+      fputs("SMAppService unregister failed: \(error)\n", stderr)
+    }
+
+    cleanUpLegacyAgent()
     try? FileManager.default.removeItem(atPath: clientLinkPath)
+  }
+
+  /// Removes any LaunchAgent installed by the pre-SMAppService code path so a fresh
+  /// install doesn't leave two copies of the service registered.
+  private static func cleanUpLegacyAgent() {
+    if FileManager.default.fileExists(atPath: legacyPlistPath) {
+      run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")
+      try? FileManager.default.removeItem(atPath: legacyPlistPath)
+    }
   }
 
   private static func run(_ path: String, _ args: String...) {

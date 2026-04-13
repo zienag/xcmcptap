@@ -13,7 +13,7 @@ public struct SettingsView: View {
   public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: Spacing.l) {
-        configCard
+        integrationsCard
         pathsCard
         actionsRow
       }
@@ -37,39 +37,52 @@ public struct SettingsView: View {
     }
   }
 
-  private var configCard: some View {
+  private var integrationsCard: some View {
     VStack(alignment: .leading, spacing: Spacing.s) {
-      SectionLabel("MCP config command")
-      HStack(spacing: Spacing.s) {
-        Text(store.mcpConfigCommand)
-          .font(.system(.caption, design: .monospaced))
-          .textSelection(.enabled)
-          .foregroundStyle(.primary)
-          .lineLimit(1)
-          .truncationMode(.middle)
-          .padding(.horizontal, Spacing.s)
-          .padding(.vertical, Spacing.s)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(
-            Color(nsColor: .textBackgroundColor),
-            in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
-          )
-          .cardBorder(radius: Radius.small)
-
-        Button {
-          store.send(.settings(.copyTapped))
-        } label: {
-          let copied = store.settings.copied
-          Label(
-            copied ? "Copied" : "Copy",
-            systemImage: copied ? "checkmark" : "doc.on.doc"
-          )
-          .fixedSize()
+      SectionLabel("Integrations")
+      Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.m, verticalSpacing: Spacing.s) {
+        let integrations = store.integrations
+        ForEach(Array(integrations.enumerated()), id: \.element.id) { index, integration in
+          integrationRow(integration)
+          if index != integrations.count - 1 {
+            Divider().gridCellUnsizedAxes(.horizontal)
+          }
         }
-        .buttonStyle(.bordered)
-        .tint(store.settings.copied ? .green : .accentColor)
-        .animation(.easeInOut(duration: 0.15), value: store.settings.copied)
       }
+      .padding(Spacing.m)
+      .cardSurface(radius: Radius.medium)
+    }
+  }
+
+  @ViewBuilder
+  private func integrationRow(_ integration: Integration) -> some View {
+    let copied = store.settings.copiedIntegrationID == integration.id
+    GridRow(alignment: .firstTextBaseline) {
+      Text(integration.displayName)
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
+        .gridColumnAlignment(.leading)
+      Text(integration.text)
+        .font(.system(.caption, design: .monospaced))
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      Button {
+        store.send(.settings(.copyTapped(id: integration.id, command: integration.text)))
+      } label: {
+        Label(
+          copied ? "Copied" : "Copy",
+          systemImage: copied ? "checkmark" : "doc.on.doc"
+        )
+        .fixedSize()
+      }
+      .buttonStyle(.bordered)
+      .controlSize(.small)
+      .tint(copied ? .green : .accentColor)
+      .animation(.easeInOut(duration: 0.15), value: copied)
     }
   }
 
@@ -153,11 +166,11 @@ private struct SectionLabel: View {
 #if DEBUG
 #Preview("Installed") {
   SettingsView(store: Store(initialState: .previewRunning()) { AppFeature() })
-    .frame(width: 640, height: 320)
+    .frame(width: 640, height: 520)
 }
 
 #Preview("Not installed") {
   SettingsView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
-    .frame(width: 640, height: 320)
+    .frame(width: 640, height: 520)
 }
 #endif

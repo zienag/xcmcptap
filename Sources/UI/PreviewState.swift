@@ -6,43 +6,64 @@ extension AppFeature.State {
   /// Fixed reference time for deterministic previews and snapshot tests.
   public static let previewNow = Date(timeIntervalSince1970: 1_700_000_000)
 
+  /// Stable path values for deterministic snapshot output. Override the
+  /// dependency-derived defaults, which vary by test runner / bundle location.
+  private static let previewPlistPath =
+    "/Applications/Xcode MCP Tap.app/Contents/Library/LaunchAgents/alfred.xcmcptap.plist"
+  private static let previewClientPath = "/Users/preview/.local/bin/xcmcptap"
+  private static let previewLogPath = "/Users/preview/Library/Logs/alfred.xcmcptap.log"
+
+  private static func withPreviewPaths(_ state: AppFeature.State) -> AppFeature.State {
+    var state = state
+    state.plistPath = previewPlistPath
+    state.clientPath = previewClientPath
+    state.logPath = previewLogPath
+    return state
+  }
+
   public static func previewRunning() -> AppFeature.State {
     let now = previewNow
-    return AppFeature.State(
-      connections: sampleConnections(relativeTo: now),
-      health: ServiceHealth(
-        startedAt: now.addingTimeInterval(-(2 * 3600 + 47 * 60 + 12)),
-        totalConnectionsServed: 18,
-        activeConnectionCount: 3
-      ),
-      isInstalled: true,
-      isServiceRunning: true,
-      now: now,
-      tools: ToolsFeature.State(tools: sampleTools)
+    return withPreviewPaths(
+      AppFeature.State(
+        connections: sampleConnections(relativeTo: now),
+        health: ServiceHealth(
+          startedAt: now.addingTimeInterval(-(2 * 3600 + 47 * 60 + 12)),
+          totalConnectionsServed: 18,
+          activeConnectionCount: 3
+        ),
+        isInstalled: true,
+        isServiceRunning: true,
+        now: now,
+        tools: ToolsFeature.State(tools: sampleTools)
+      )
     )
   }
 
   public static func previewIdle() -> AppFeature.State {
     let now = previewNow
-    return AppFeature.State(
-      connections: [],
-      health: ServiceHealth(
-        startedAt: now.addingTimeInterval(-42),
-        totalConnectionsServed: 0,
-        activeConnectionCount: 0
-      ),
-      isInstalled: true,
-      isServiceRunning: true,
-      now: now,
-      tools: ToolsFeature.State(tools: sampleTools)
+    return withPreviewPaths(
+      AppFeature.State(
+        connections: [],
+        health: ServiceHealth(
+          startedAt: now.addingTimeInterval(-42),
+          totalConnectionsServed: 0,
+          activeConnectionCount: 0
+        ),
+        isInstalled: true,
+        isServiceRunning: true,
+        now: now,
+        tools: ToolsFeature.State(tools: sampleTools)
+      )
     )
   }
 
   public static func previewNotInstalled() -> AppFeature.State {
-    AppFeature.State(
-      isInstalled: false,
-      isServiceRunning: false,
-      now: previewNow
+    withPreviewPaths(
+      AppFeature.State(
+        isInstalled: false,
+        isServiceRunning: false,
+        now: previewNow
+      )
     )
   }
 

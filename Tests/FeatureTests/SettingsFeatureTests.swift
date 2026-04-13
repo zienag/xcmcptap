@@ -18,22 +18,22 @@ struct SettingsFeatureTests {
       }
     }
 
-    await store.send(.copyTapped) {
-      $0.copied = true
+    let command = "claude mcp add --transport stdio xcode -- /tmp/xcmcptap"
+    await store.send(.copyTapped(id: "claude", command: command)) {
+      $0.copiedIntegrationID = "claude"
     }
 
     await clock.advance(by: .seconds(1.2))
 
     await store.receive(\.copyResetElapsed) {
-      $0.copied = false
+      $0.copiedIntegrationID = nil
     }
 
-    #expect(copiedStrings.value.count == 1)
-    #expect(copiedStrings.value.first?.hasPrefix("claude mcp add --transport stdio xcode -- ") == true)
+    #expect(copiedStrings.value == [command])
   }
 
   @Test
-  func copyTappedTwiceCancelsInFlightReset() async {
+  func copyTappedDifferentIntegrationSwitchesHighlightAndCancelsPreviousReset() async {
     let clock = TestClock()
 
     let store = TestStore(initialState: SettingsFeature.State()) {
@@ -43,18 +43,20 @@ struct SettingsFeatureTests {
       $0.pasteboard.copy = { _ in }
     }
 
-    await store.send(.copyTapped) {
-      $0.copied = true
+    await store.send(.copyTapped(id: "claude", command: "claude-cmd")) {
+      $0.copiedIntegrationID = "claude"
     }
 
     await clock.advance(by: .seconds(0.6))
 
-    await store.send(.copyTapped)
+    await store.send(.copyTapped(id: "codex", command: "codex-cmd")) {
+      $0.copiedIntegrationID = "codex"
+    }
 
     await clock.advance(by: .seconds(1.2))
 
     await store.receive(\.copyResetElapsed) {
-      $0.copied = false
+      $0.copiedIntegrationID = nil
     }
   }
 

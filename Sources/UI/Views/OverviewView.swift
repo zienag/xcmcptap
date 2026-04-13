@@ -12,6 +12,9 @@ public struct OverviewView: View {
   public var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: Spacing.m) {
+        if store.requiresApproval {
+          approvalBanner
+        }
         statusBar
         statsGrid
       }
@@ -19,6 +22,33 @@ public struct OverviewView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .navigationTitle("Overview")
+  }
+
+  private var approvalBanner: some View {
+    HStack(alignment: .top, spacing: Spacing.s) {
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundStyle(.orange)
+        .font(.title3)
+      VStack(alignment: .leading, spacing: Spacing.hairline) {
+        Text("Approval needed")
+          .font(.headline)
+        Text("macOS is holding the background service. Enable Xcode MCP Tap under Login Items to finish installing.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: Spacing.s)
+      Button("Open Login Items") { store.send(.openLoginItemsTapped) }
+        .controlSize(.small)
+        .buttonStyle(.borderedProminent)
+    }
+    .padding(.horizontal, Spacing.l)
+    .padding(.vertical, Spacing.m)
+    .cardSurface(radius: Radius.large)
+    .overlay {
+      RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
+        .stroke(Color.orange.opacity(SurfaceOpacity.border), lineWidth: BorderWidth.hairline)
+    }
   }
 
   private var statusBar: some View {
