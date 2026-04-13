@@ -66,4 +66,22 @@ struct ToolsViewSnapshotTests {
     )
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }
+
+  @Test
+  func populatedRTL() {
+    let tools = AppFeature.State.sampleTools
+    let controller = hostedInWindow(
+      ToolsView(
+        store: Store(
+          initialState: ToolsFeature.State(
+            selectedToolID: tools.first?.id,
+            tools: tools
+          )
+        ) { ToolsFeature() }
+      )
+      .environment(\.layoutDirection, .rightToLeft),
+      size: Self.size
+    )
+    assertSnapshot(of: controller, as: .image(size: Self.size))
+  }
 }

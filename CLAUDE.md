@@ -102,10 +102,11 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 - **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing), plus the status protocol types (`StatusRequest/Response`, `ConnectionInfo`, `ServiceHealth`, `ToolInfo`, `StatusEvent`) — all `Equatable` so they can appear in `@ObservableState`. Used by every other target.
 - **XcodeMCPTapClient** (`Sources/Client/`) — Client logic: XPC session, stdin reader, stdout writer. Exposes `public enum ClientMain { public static func run() }`.
 - **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, plus `public enum ServiceMain { public static func run() }`. Imported by tests.
-- **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI + TCA layer. Organized into three folders:
+- **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI + TCA layer. Organized into four folders:
   - `Views/` — `ContentView`, `OverviewView`, `ToolsView`, `ConnectionsView`, `SettingsView`, plus `StatusDot`, `SidebarItem`, `ToolCategory`, `formatUptime(interval:)`.
   - `Features/` — `AppFeature` (root reducer, owns global state + selection + `now`), `ToolsFeature` (search/selection sub-feature), `SettingsFeature` (copy-reset + uninstall-confirm sub-feature with a `Delegate` action that forwards install/uninstall intent to the root).
   - `Dependencies/` — `StatusClient` (wraps `XPCSession` + event stream in an actor, served via `@Dependency(\.statusClient)`), `ServiceInstallerClient` (install/uninstall/path accessors), `PasteboardClient` (NSPasteboard copy). Each exposes `liveValue` and `testValue`.
+  - `DesignSystem/` — `Tokens.swift` (`Spacing`, `Radius`, `IconSize`, `SidebarWidth`, `WindowSize`, `SurfaceOpacity`, `BorderWidth` enums) and `Modifiers.swift` (`cardSurface()`, `cardBorder()`). See "UI layout conventions" below.
   - Top-level `ServiceInstaller.swift` (the live implementation backing `ServiceInstallerClient`) and `PreviewState.swift` (`AppFeature.State.previewRunning()` etc.).
 - **xpc-test-echo-server** (`Sources/TestEchoServer/`) — Test helper that echoes `MCPLine` messages back with "echo:" prefix.
 - **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, Subprocess round-trip tests, MCP proxy tests.
@@ -132,3 +133,11 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 - **Thread safety:** All mutable shared state is guarded by `Mutex`. Classes use `@unchecked Sendable` when Mutex provides the safety guarantee. Use `nonisolated(unsafe) var` when synchronization is handled externally (e.g., semaphores in tests).
 - **TCA effects + strict concurrency:** `@Reducer struct` is not `Sendable`, so capturing `self` inside `.run { send in ... }` fails. Copy each `@Dependency` into a local before returning the effect: `let clock = self.clock; return .run { ... }`. Or make the effect body a `static` helper taking the deps as parameters.
 - **Nested action enums need `@CasePathable`:** `TestStore.receive(\.delegate.install)` traverses nested case paths. The outer `Action` gets it from `@Reducer`; inner enums (e.g. `SettingsFeature.Action.Delegate`) must be annotated explicitly.
+
+### UI layout conventions
+
+- **Use design tokens, never raw numbers.** All spacing, radii, opacities, icon sizes, sidebar widths, and border styling come from `Sources/UI/DesignSystem/Tokens.swift`. New views must read from these enums rather than introduce fresh magic numbers. Repeated card chrome uses `.cardSurface(radius:)` / `.cardBorder(radius:)` from `Modifiers.swift`.
+- **Tabular layouts use `Grid` + `GridRow`,** not `HStack` with `.frame(width:)` columns. Grid auto-sizes columns to widest content and mirrors correctly under RTL — fixed widths break both. Examples: `ConnectionsView` (whole table) and `SettingsView` paths card.
+- **`GridRow` modifier gotcha:** `GridRow` must be a *direct* child of `Grid`. Wrapping it in `.padding`/`.background`/`.onHover`/etc. makes the result a different view type, and `Grid` no longer treats it as a row. Workarounds: use a `@ViewBuilder` function returning `GridRow` (the call-site inlines), apply per-cell padding instead of per-row, or use `Grid`'s own `verticalSpacing:`/`horizontalSpacing:` arguments. State-bearing per-row views (`@State var hovered`) cannot be `GridRow`-typed without losing layout.
+- **Truncated text needs `.minimumScaleFactor`.** Anywhere `.lineLimit(1)` guards a label that could be localized, pair it with `.minimumScaleFactor(0.85)` (or lower for large display values) so non-English strings shrink instead of clipping.
+- **RTL snapshot variants are required.** Each top-level view in `Tests/UISnapshotTests/` has a `*RTL` test that wraps the view in `.environment(\.layoutDirection, .rightToLeft)`. New views add the same.

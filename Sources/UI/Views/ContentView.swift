@@ -13,12 +13,16 @@ public struct ContentView: View {
   public var body: some View {
     NavigationSplitView(columnVisibility: $columnVisibility) {
       sidebar
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 240)
+        .navigationSplitViewColumnWidth(
+          min: SidebarWidth.primaryMin,
+          ideal: SidebarWidth.primaryIdeal,
+          max: SidebarWidth.primaryMax
+        )
     } detail: {
       detail
     }
     .navigationSplitViewStyle(.balanced)
-    .frame(minWidth: 680, minHeight: 400)
+    .frame(minWidth: WindowSize.appMinWidth, minHeight: WindowSize.appMinHeight)
     .task { await store.send(.task).finish() }
   }
 
@@ -38,9 +42,9 @@ public struct ContentView: View {
   }
 
   private var sidebarFooter: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: Spacing.s) {
       StatusDot(running: store.isServiceRunning)
-      VStack(alignment: .leading, spacing: 1) {
+      VStack(alignment: .leading, spacing: Spacing.hairline) {
         Text(store.isServiceRunning ? "Service running" : "Service stopped")
           .font(.caption.weight(.medium))
         if store.isServiceRunning, let uptime = store.uptimeText {
@@ -56,8 +60,8 @@ public struct ContentView: View {
       }
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 10)
+    .padding(.horizontal, Spacing.l)
+    .padding(.vertical, Spacing.s)
     .background(.bar)
     .overlay(alignment: .top) {
       Divider()
@@ -127,17 +131,20 @@ public struct StatusDot: View {
     ZStack {
       if running {
         Circle()
-          .stroke(Color.green.opacity(0.6), lineWidth: 2)
-          .frame(width: 10, height: 10)
+          .stroke(Color.green.opacity(SurfaceOpacity.border), lineWidth: BorderWidth.ring)
+          .frame(width: IconSize.statusDotOuter, height: IconSize.statusDotOuter)
           .scaleEffect(pulse ? 2.4 : 1.0)
           .opacity(pulse ? 0 : 0.7)
       }
       Circle()
-        .fill(running ? Color.green : Color.red.opacity(0.85))
-        .frame(width: 8, height: 8)
-        .shadow(color: (running ? Color.green : Color.red).opacity(0.5), radius: 3)
+        .fill(running ? Color.green : Color.red.opacity(SurfaceOpacity.mutedDot))
+        .frame(width: IconSize.statusDotInner, height: IconSize.statusDotInner)
+        .shadow(
+          color: (running ? Color.green : Color.red).opacity(SurfaceOpacity.shadow),
+          radius: 3
+        )
     }
-    .frame(width: 14, height: 14)
+    .frame(width: IconSize.statusDotFrame, height: IconSize.statusDotFrame)
     .onAppear {
       guard running else { return }
       withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {

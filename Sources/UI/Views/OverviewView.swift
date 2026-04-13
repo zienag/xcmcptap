@@ -11,22 +11,22 @@ public struct OverviewView: View {
 
   public var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 12) {
+      VStack(alignment: .leading, spacing: Spacing.m) {
         statusBar
         statsGrid
       }
-      .padding(16)
+      .padding(Spacing.l)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .navigationTitle("Overview")
   }
 
   private var statusBar: some View {
-    HStack(spacing: 10) {
+    HStack(spacing: Spacing.s) {
       StatusDot(running: store.isServiceRunning)
       Text(statusText)
         .font(.headline)
-      Spacer(minLength: 8)
+      Spacer(minLength: Spacing.s)
       if store.isServiceRunning, let uptime = store.uptimeText {
         Label(uptime, systemImage: "clock")
           .labelStyle(.titleAndIcon)
@@ -39,13 +39,9 @@ public struct OverviewView: View {
           .buttonStyle(.borderedProminent)
       }
     }
-    .padding(.horizontal, 14)
-    .padding(.vertical, 12)
-    .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-    .overlay {
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
-    }
+    .padding(.horizontal, Spacing.l)
+    .padding(.vertical, Spacing.m)
+    .cardSurface(radius: Radius.large)
   }
 
   private var statusText: String {
@@ -56,8 +52,8 @@ public struct OverviewView: View {
 
   private var statsGrid: some View {
     LazyVGrid(
-      columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4),
-      spacing: 10
+      columns: Array(repeating: GridItem(.flexible(), spacing: Spacing.s), count: 4),
+      spacing: Spacing.s
     ) {
       StatTile(
         label: "Tools",
@@ -113,20 +109,27 @@ public struct StatTile: View {
   }
 
   public var body: some View {
-    let content = HStack(alignment: .center, spacing: 10) {
+    let content = HStack(alignment: .center, spacing: Spacing.s) {
       Image(systemName: icon)
         .font(.system(size: 13, weight: .semibold))
         .foregroundStyle(tint)
-        .frame(width: 26, height: 26)
-        .background(tint.opacity(0.15), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .frame(width: IconSize.tile, height: IconSize.tile)
+        .background(
+          tint.opacity(SurfaceOpacity.iconTint),
+          in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+        )
       VStack(alignment: .leading, spacing: 0) {
         Text(value)
           .font(.system(size: 18, weight: .semibold, design: .rounded))
           .monospacedDigit()
           .foregroundStyle(.primary)
+          .minimumScaleFactor(0.7)
+          .lineLimit(1)
         Text(label)
           .font(.caption)
           .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.85)
       }
       Spacer(minLength: 0)
       if action != nil {
@@ -135,17 +138,13 @@ public struct StatTile: View {
           .foregroundStyle(.tertiary)
       }
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 10)
+    .padding(.horizontal, Spacing.m)
+    .padding(.vertical, Spacing.s)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    .cardSurface(radius: Radius.large)
     .overlay {
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .fill(Color.primary.opacity(hovered && action != nil ? 0.04 : 0))
-    }
-    .overlay {
-      RoundedRectangle(cornerRadius: 10, style: .continuous)
-        .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
+      RoundedRectangle(cornerRadius: Radius.large, style: .continuous)
+        .fill(Color.primary.opacity(hovered && action != nil ? SurfaceOpacity.hover : 0))
     }
 
     if let action {

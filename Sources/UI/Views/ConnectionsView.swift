@@ -18,13 +18,19 @@ public struct ConnectionsView: View {
         )
       } else {
         ScrollView {
-          LazyVStack(spacing: 6) {
-            ForEach(store.connections) { connection in
+          Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.m, verticalSpacing: 0) {
+            ForEach(Array(store.connections.enumerated()), id: \.element.id) { index, connection in
+              if index > 0 {
+                Divider().gridCellUnsizedAxes(.horizontal)
+              }
               ConnectionRow(connection: connection, now: store.now)
             }
           }
-          .padding(16)
+          .padding(.vertical, Spacing.s)
+          .padding(.horizontal, Spacing.m)
           .frame(maxWidth: .infinity, alignment: .leading)
+          .cardSurface(radius: Radius.medium)
+          .padding(Spacing.l)
         }
       }
     }
@@ -49,48 +55,47 @@ private struct ConnectionRow: View {
   }
 
   var body: some View {
-    HStack(spacing: 12) {
+    GridRow(alignment: .center) {
       Image(systemName: activityIsRecent ? "dot.radiowaves.left.and.right" : "personalhotspot")
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(activityIsRecent ? .green : .secondary)
-        .frame(width: 22, height: 22)
+        .frame(width: IconSize.listBadge, height: IconSize.listBadge)
         .background(
-          (activityIsRecent ? Color.green : Color.secondary).opacity(0.15),
-          in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+          (activityIsRecent ? Color.green : Color.secondary).opacity(SurfaceOpacity.iconTint),
+          in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
         )
 
       Text("PID \(connection.bridgePID)")
         .font(.system(.callout, design: .monospaced))
-        .frame(width: 110, alignment: .leading)
+        .lineLimit(1)
+        .gridColumnAlignment(.leading)
 
       Text(formatUptime(interval: now.timeIntervalSince(connection.connectedAt)))
         .font(.caption)
         .foregroundStyle(.secondary)
         .monospacedDigit()
-        .frame(width: 70, alignment: .leading)
+        .lineLimit(1)
+        .gridColumnAlignment(.leading)
 
       Text("last \(lastActivityText)")
         .font(.caption)
         .foregroundStyle(activityIsRecent ? Color.green : Color.secondary)
         .monospacedDigit()
-        .frame(width: 70, alignment: .leading)
+        .lineLimit(1)
+        .gridColumnAlignment(.leading)
 
-      Spacer(minLength: 0)
-
-      Text("\(connection.messagesRouted)")
-        .font(.system(.callout, design: .rounded).weight(.semibold))
-        .monospacedDigit()
-      Text("msg")
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      HStack(spacing: Spacing.xs) {
+        Spacer(minLength: 0)
+        Text("\(connection.messagesRouted)")
+          .font(.system(.callout, design: .rounded).weight(.semibold))
+          .monospacedDigit()
+        Text("msg")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .gridColumnAlignment(.trailing)
     }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 9)
-    .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    .overlay {
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
-    }
+    .padding(.vertical, Spacing.s)
   }
 }
 

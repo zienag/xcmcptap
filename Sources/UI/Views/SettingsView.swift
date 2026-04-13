@@ -12,12 +12,12 @@ public struct SettingsView: View {
 
   public var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 14) {
+      VStack(alignment: .leading, spacing: Spacing.l) {
         configCard
         pathsCard
         actionsRow
       }
-      .padding(16)
+      .padding(Spacing.l)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .navigationTitle("Settings")
@@ -38,26 +38,23 @@ public struct SettingsView: View {
   }
 
   private var configCard: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: Spacing.s) {
       SectionLabel("MCP config command")
-      HStack(spacing: 8) {
+      HStack(spacing: Spacing.s) {
         Text(store.mcpConfigCommand)
           .font(.system(.caption, design: .monospaced))
           .textSelection(.enabled)
           .foregroundStyle(.primary)
           .lineLimit(1)
           .truncationMode(.middle)
-          .padding(.horizontal, 10)
-          .padding(.vertical, 8)
+          .padding(.horizontal, Spacing.s)
+          .padding(.vertical, Spacing.s)
           .frame(maxWidth: .infinity, alignment: .leading)
           .background(
             Color(nsColor: .textBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
           )
-          .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
-          }
+          .cardBorder(radius: Radius.small)
 
         Button {
           store.send(.settings(.copyTapped))
@@ -67,7 +64,7 @@ public struct SettingsView: View {
             copied ? "Copied" : "Copy",
             systemImage: copied ? "checkmark" : "doc.on.doc"
           )
-          .frame(width: 62)
+          .fixedSize()
         }
         .buttonStyle(.bordered)
         .tint(store.settings.copied ? .green : .accentColor)
@@ -77,25 +74,56 @@ public struct SettingsView: View {
   }
 
   private var pathsCard: some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: Spacing.s) {
       SectionLabel("Paths")
-      VStack(spacing: 0) {
-        PathRow(label: "Client", path: store.clientPath)
-        Divider()
-        PathRow(label: "Launch agent", path: store.plistPath)
-        Divider()
-        PathRow(label: "Log", path: store.logPath)
+      Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.m, verticalSpacing: Spacing.s) {
+        pathRow(label: "Client", path: store.clientPath)
+        Divider().gridCellUnsizedAxes(.horizontal)
+        pathRow(label: "Launch agent", path: store.plistPath)
+        Divider().gridCellUnsizedAxes(.horizontal)
+        pathRow(label: "Log", path: store.logPath)
       }
-      .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-      .overlay {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .strokeBorder(.separator.opacity(0.6), lineWidth: 0.5)
+      .padding(Spacing.m)
+      .cardSurface(radius: Radius.medium)
+    }
+  }
+
+  @ViewBuilder
+  private func pathRow(label: String, path: String) -> some View {
+    let exists = FileManager.default.fileExists(atPath: path)
+    GridRow(alignment: .firstTextBaseline) {
+      Text(label)
+        .foregroundStyle(.secondary)
+        .font(.caption)
+        .lineLimit(1)
+        .gridColumnAlignment(.leading)
+      Text(path)
+        .font(.system(.caption, design: .monospaced))
+        .truncationMode(.middle)
+        .lineLimit(1)
+        .textSelection(.enabled)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      if exists {
+        Button {
+          NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        } label: {
+          Image(systemName: "arrow.up.right.square")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("Reveal in Finder")
+      } else {
+        Image(systemName: "questionmark.circle")
+          .font(.caption)
+          .foregroundStyle(.tertiary)
+          .help("File does not exist")
       }
     }
   }
 
   private var actionsRow: some View {
-    HStack(spacing: 8) {
+    HStack(spacing: Spacing.s) {
       if store.isInstalled {
         Button("Reinstall") { store.send(.settings(.installTapped)) }
         Button("Uninstall", role: .destructive) { store.send(.settings(.uninstallTapped)) }
@@ -119,52 +147,6 @@ private struct SectionLabel: View {
       .font(.caption.weight(.semibold))
       .foregroundStyle(.secondary)
       .tracking(0.4)
-  }
-}
-
-private struct PathRow: View {
-  var label: String
-  var path: String
-  @State private var hovered = false
-
-  private var fileExists: Bool {
-    FileManager.default.fileExists(atPath: path)
-  }
-
-  var body: some View {
-    HStack(spacing: 10) {
-      Text(label)
-        .foregroundStyle(.secondary)
-        .font(.caption)
-        .frame(width: 88, alignment: .leading)
-      Text(path)
-        .font(.system(.caption, design: .monospaced))
-        .truncationMode(.middle)
-        .lineLimit(1)
-        .textSelection(.enabled)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      if fileExists {
-        Button {
-          NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-        } label: {
-          Image(systemName: "arrow.up.right.square")
-            .font(.caption)
-            .foregroundStyle(hovered ? Color.accentColor : Color.secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Reveal in Finder")
-      } else {
-        Image(systemName: "questionmark.circle")
-          .font(.caption)
-          .foregroundStyle(.tertiary)
-          .help("File does not exist")
-      }
-    }
-    .padding(.horizontal, 12)
-    .padding(.vertical, 8)
-    .contentShape(Rectangle())
-    .background(hovered ? Color.primary.opacity(0.04) : .clear)
-    .onHover { hovered = $0 }
   }
 }
 

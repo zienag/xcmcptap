@@ -5,10 +5,6 @@ import XcodeMCPTapShared
 public struct ToolsView: View {
   @Bindable public var store: StoreOf<ToolsFeature>
 
-  private enum Layout {
-    static let toolListWidth: CGFloat = 280
-  }
-
   public init(store: StoreOf<ToolsFeature>) {
     self.store = store
   }
@@ -20,7 +16,7 @@ public struct ToolsView: View {
       } else {
         HStack(spacing: 0) {
           toolList
-            .frame(width: Layout.toolListWidth)
+            .frame(width: SidebarWidth.toolListIdeal)
           Divider()
           toolDetail
             .frame(maxWidth: .infinity)
@@ -41,10 +37,12 @@ public struct ToolsView: View {
               .tag(tool.id)
           }
         } header: {
-          HStack(spacing: 6) {
+          HStack(spacing: Spacing.xs) {
             Image(systemName: category.systemImage)
               .foregroundStyle(category.tint)
             Text(category.rawValue)
+              .lineLimit(1)
+              .minimumScaleFactor(0.85)
             Spacer()
             Text("\(tools.count)")
               .font(.caption.monospacedDigit())
@@ -77,19 +75,22 @@ private struct ToolListRow: View {
   var tool: ToolInfo
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 3) {
+    VStack(alignment: .leading, spacing: Spacing.xs) {
       Text(tool.name)
         .font(.system(.callout, design: .monospaced))
         .fontWeight(.medium)
         .lineLimit(1)
+        .minimumScaleFactor(0.85)
+        .truncationMode(.middle)
       if !tool.description.isEmpty {
         Text(tool.description)
           .font(.caption)
           .foregroundStyle(.secondary)
           .lineLimit(2)
+          .minimumScaleFactor(0.9)
       }
     }
-    .padding(.vertical, 3)
+    .padding(.vertical, Spacing.xs)
   }
 }
 
@@ -100,18 +101,21 @@ private struct ToolDetailView: View {
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 12) {
-        HStack(spacing: 8) {
+      VStack(alignment: .leading, spacing: Spacing.m) {
+        HStack(spacing: Spacing.s) {
           Text(tool.name)
             .font(.system(.title3, design: .monospaced).weight(.semibold))
             .textSelection(.enabled)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
           Label(category.rawValue, systemImage: category.systemImage)
             .labelStyle(.titleAndIcon)
             .font(.caption.weight(.medium))
             .foregroundStyle(category.tint)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(category.tint.opacity(0.12), in: Capsule())
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, Spacing.hairline)
+            .background(category.tint.opacity(SurfaceOpacity.tintFill), in: Capsule())
+            .fixedSize()
           Spacer(minLength: 0)
         }
         if tool.description.isEmpty {
@@ -125,7 +129,7 @@ private struct ToolDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
       }
-      .padding(16)
+      .padding(Spacing.l)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
