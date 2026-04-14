@@ -26,6 +26,8 @@ public actor MCPConnection {
   private let writes: AsyncStream<[UInt8]>.Continuation
   /// Reads from the subprocess's stdout (one line per element).
   private let reads: AsyncStream<[UInt8]>
+  /// Reads from the subprocess's stderr (one line per element).
+  private let errs: AsyncStream<[UInt8]>
   /// One-shot pid stream.
   private let pidStream: AsyncStream<pid_t>
   private var bridgeTask: Task<Void, Never>?
@@ -34,6 +36,12 @@ public actor MCPConnection {
   private var nextReservedID = -1
   private let passthroughContinuation: AsyncStream<[UInt8]>.Continuation
   private var _processID: pid_t = 0
+
+  /// Ring buffer of the most recent stderr lines emitted by the
+  /// subprocess. Exposed via `recentStderr` so callers can include the
+  /// real failure reason in messages they surface to their own clients.
+  private var stderrBuffer: [String] = []
+  private let stderrBufferLimit = 16
 
   public nonisolated let passthrough: AsyncStream<[UInt8]>
 
@@ -47,9 +55,11 @@ public actor MCPConnection {
     // Internal channels shared between the owning bridge task and this actor.
     let (writeStream, writeCont) = AsyncStream<[UInt8]>.makeStream()
     let (readStream, readCont) = AsyncStream<[UInt8]>.makeStream()
+    let (errStream, errCont) = AsyncStream<[UInt8]>.makeStream()
     let (pidStream, pidCont) = AsyncStream<pid_t>.makeStream()
     self.writes = writeCont
     self.reads = readStream
+    self.errs = errStream
     self.pidStream = pidStream
     (self.passthrough, self.passthroughContinuation) = AsyncStream.makeStream()
 
@@ -63,6 +73,7 @@ public actor MCPConnection {
         args: capturedArgs,
         input: writeStream,
         output: readCont,
+        stderr: errCont,
         pid: pidCont
       )
       await bridge.run()
@@ -71,8 +82,16 @@ public actor MCPConnection {
 
   public var processID: pid_t { _processID }
 
+  /// Snapshot of the most recent stderr lines, joined with newlines.
+  /// Safe to read at any time; empty if the subprocess has not written
+  /// any stderr yet.
+  public var recentStderr: String {
+    stderrBuffer.joined(separator: "\n")
+  }
+
   public func start() {
     Task { await self.readLoop() }
+    Task { await self.errLoop() }
     let pids = pidStream
     Task { [weak self] in
       for await pid in pids {
@@ -130,6 +149,13 @@ public actor MCPConnection {
     return id
   }
 
+  private func appendStderr(_ line: String) {
+    stderrBuffer.append(line)
+    if stderrBuffer.count > stderrBufferLimit {
+      stderrBuffer.removeFirst(stderrBuffer.count - stderrBufferLimit)
+    }
+  }
+
   private func readLoop() async {
     for await line in reads {
       if let envelope = try? JSONDecoder().decode(RPCEnvelope.self, from: Data(line)),
@@ -147,6 +173,13 @@ public actor MCPConnection {
       cont.resume(throwing: MCPConnectionError.transportClosed)
     }
     pending.removeAll()
+  }
+
+  private func errLoop() async {
+    for await bytes in errs {
+      guard let line = String(bytes: bytes, encoding: .utf8) else { continue }
+      appendStderr(line)
+    }
   }
 }
 

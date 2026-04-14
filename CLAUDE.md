@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Workflow: TDD Is Mandatory
+
+**This project is developed test-first.** Every behavioral change (bug fix, new feature, edge-case handling) starts with a failing test, then the minimal code change that turns it green. This is non-negotiable.
+
+- **Never write production code before writing a failing test for the behavior you want.**
+- Write the test, run it, confirm it fails for the right reason, then implement.
+- "Design documents" and prose planning are not a substitute for a failing test. If you find yourself talking about how state should transition without a `@Test` pinning that transition, you're doing it wrong.
+- Applies equally to bug fixes: reproduce the bug as a failing test first, then fix the code.
+- Applies equally to refactors of behavior-bearing code: there must be a test that would catch a regression before the refactor is made.
+
 ## The Problem We're Solving
 
 Every time a coding agent (Claude Code, Cursor, Codex, etc.) starts an MCP session, it spawns a new `xcrun mcpbridge` process. Each new mcpbridge process triggers **Xcode's permission dialog** ("The agent wants to use Xcode's tools"). This dialog appears per-process-launch and the permission is only held in-memory for that Xcode process lifetime — there's no "permanently allow" option.
@@ -65,9 +75,9 @@ The `.xcodeproj` is generated from `project.yml` via [XcodeGen](https://github.c
 Most tests are SPM targets run via `swift test`. The XCUITest bundle (`XcodeMCPTapUITests`) is an Xcode target — run it through `xcodebuild ... test` against the XcodeMCPTap scheme.
 
 - **`XPCTests`** (`Tests/XPCTests/`) — Service-layer integration tests.
-  - **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `scripts/mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
-  - **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
+  - **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC against the mock.
   - **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `scripts/mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
+  - **`BridgeFailureTests`** — Pins the router's behavior when mcpbridge is broken. Drives `scripts/mock-mcpbridge.py --fail {at-startup,after-init}` to simulate "Xcode not running" (immediate crash before init handshake) and mid-session crash. Asserts every client request receives a JSON-RPC `-32603` error envelope carrying the real stderr reason, notifications are dropped silently, in-flight and pending queues both drain with errors. Regression guard for the silent-hang bug where a dead bridge left clients waiting forever.
   - **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
   - **`SymlinkOperationsTests` / `HelperHandlerTests`** — Pure unit tests for the privileged helper's file ops and request dispatch, exercised against `$TMPDIR` destinations. No XPC, no launchd.
   - **`HelperProtocolTests`** — Codable round-trip for `HelperRequest` / `HelperResponse`.

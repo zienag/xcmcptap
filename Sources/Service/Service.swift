@@ -2,7 +2,6 @@ import Darwin
 import class Foundation.FileManager
 import func Foundation.NSHomeDirectory
 import struct Foundation.UUID
-import Synchronization
 import XPC
 import XcodeMCPTapShared
 
@@ -30,26 +29,20 @@ public enum ServiceMain {
     // Start mcpbridge at service startup (before dispatchMain).
     // mcpbridge cannot be spawned from XPC accept handlers — it fails
     // with a decode error when launched in that context.
-    let connection = MCPConnection(exec: "/usr/bin/xcrun", "mcpbridge")
-    let router = MCPRouter(connection: connection)
+    //
+    // The router owns a connection FACTORY rather than a single
+    // connection so that if mcpbridge dies (e.g. Xcode wasn't running
+    // on first spawn, or the user quit Xcode later) the next client
+    // message drives a fresh subprocess without any external restart.
+    let router = MCPRouter(makeConnection: {
+      MCPConnection(exec: "/usr/bin/xcrun", "mcpbridge")
+    })
 
     router.onToolsDiscovered = { tools in
       registry.updateTools(tools)
     }
 
     router.start()
-
-    // Wait for the init handshake to complete, then snapshot the
-    // subprocess PID into a box the XPC accept handler can read.
-    let bridgePID = Mutex<pid_t>(0)
-    Task {
-      try? await Task.sleep(for: .seconds(2))
-      let pid = await connection.processID
-      bridgePID.withLock { $0 = pid }
-      fputs("[service] bridge started, PID=\(pid)\n", stderr)
-    }
-
-    sleep(2)
 
     let listener: XPCListener
     do {
@@ -76,8 +69,8 @@ public enum ServiceMain {
         try? session.send(MCPLine(line))
       }
 
-      let snapshot = bridgePID.withLock { $0 }
-      _ = registry.register(id: connectionID, bridgePID: snapshot)
+      // Bridge PID is not meaningful across respawns; report 0.
+      _ = registry.register(id: connectionID, bridgePID: 0)
       return decision
       }
     } catch {

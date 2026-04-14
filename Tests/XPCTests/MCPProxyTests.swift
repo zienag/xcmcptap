@@ -17,8 +17,7 @@ struct MCPProxyTests {
 
   @Test func initializeHandshake() async throws {
     let h = makeHarness()
-    let conn = h.connection
-    defer { Task { await conn.terminate() } }
+    defer { Task { await h.terminate() } }
 
     let envelope = try await h.handshake(id: 42)
 
@@ -40,8 +39,7 @@ struct MCPProxyTests {
 
   @Test func toolsList() async throws {
     let h = makeHarness()
-    let conn = h.connection
-    defer { Task { await conn.terminate() } }
+    defer { Task { await h.terminate() } }
 
     _ = try await h.handshake()
     h.sendInitialized()
@@ -66,8 +64,7 @@ struct MCPProxyTests {
 
   @Test func toolsCall() async throws {
     let h = makeHarness()
-    let conn = h.connection
-    defer { Task { await conn.terminate() } }
+    defer { Task { await h.terminate() } }
 
     _ = try await h.handshake()
     h.sendInitialized()
@@ -96,8 +93,7 @@ struct MCPProxyTests {
 
   @Test func multipleSequentialMessages() async throws {
     let h = makeHarness()
-    let conn = h.connection
-    defer { Task { await conn.terminate() } }
+    defer { Task { await h.terminate() } }
 
     _ = try await h.handshake()
     h.sendInitialized()
@@ -125,8 +121,7 @@ struct MCPProxyTests {
   ///    projection of structuredContent, and id is preserved verbatim.
   @Test func xcodeListWindowsClaudeCodeStyle() async throws {
     let h = makeHarness()
-    let conn = h.connection
-    defer { Task { await conn.terminate() } }
+    defer { Task { await h.terminate() } }
 
     // 1. initialize — Claude Code field ordering, with roots/elicitation.
     h.send(
@@ -189,8 +184,7 @@ struct MCPProxyTests {
 
   @Test func messagesBufferedDuringInit() async throws {
     let h = makeHarness()
-    let conn = h.connection
-    defer { Task { await conn.terminate() } }
+    defer { Task { await h.terminate() } }
 
     // Send initialize AND tools/list immediately, before bridge can respond
     h.sendInitialize(id: 1)

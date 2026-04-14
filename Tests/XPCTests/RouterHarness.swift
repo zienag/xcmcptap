@@ -5,21 +5,20 @@ import System
 import XcodeMCPTapService
 import XcodeMCPTapShared
 
-/// Convenience wrapper around MCPRouter + MCPConnection + ResponseCollector
-/// for tests. Owns the connection lifetime; call `terminate()` when done.
-final class RouterHarness {
-  let connection: MCPConnection
+/// Convenience wrapper around MCPRouter + ResponseCollector for tests.
+/// Constructs a connection factory that spawns a fresh subprocess per
+/// attempt so respawn-on-failure code paths exercise real new processes.
+final class RouterHarness: Sendable {
   let router: MCPRouter
   let collector: ResponseCollector
   let clientID: UUID
 
-  convenience init(exec: String, _ args: String...) {
-    self.init(connection: MCPConnection(exec: exec, args: args))
-  }
-
-  private init(connection: MCPConnection) {
-    self.connection = connection
-    self.router = MCPRouter(connection: connection)
+  init(exec: String, _ args: String...) {
+    let capturedExec = exec
+    let capturedArgs = args
+    self.router = MCPRouter(makeConnection: {
+      MCPConnection(exec: capturedExec, args: capturedArgs)
+    })
     self.collector = ResponseCollector()
     self.clientID = router.registerClient { [collector] line in
       collector.continuation.yield(line)
@@ -64,7 +63,7 @@ final class RouterHarness {
   }
 
   func terminate() async {
-    await connection.terminate()
+    await router.shutdown()
   }
 }
 

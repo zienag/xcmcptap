@@ -24,8 +24,15 @@ Behavior pinned to real mcpbridge:
   for parameterized tests that don't need a realistic payload.
 """
 
+import argparse
 import json
 import sys
+
+
+FATAL_NO_XCODE = (
+    "mcpbridge/MCPBridge.swift:126: Fatal error: MCP_XCODE_PID environment "
+    "variable not set and no running Xcode processes found"
+)
 
 
 # Matches what real mcpbridge returned on this machine when probed directly.
@@ -248,7 +255,34 @@ def handle(req, state, emit):
     return None
 
 
+def parse_args(argv=None):
+    """Failure-injection modes for pinning how the service handles broken
+    bridges. Default (`--fail normal`) reproduces real mcpbridge behavior.
+    """
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--fail",
+        choices=("normal", "at-startup", "after-init"),
+        default="normal",
+        help=(
+            "normal: full mcpbridge simulation (default); "
+            "at-startup: emit the real xcrun mcpbridge fatal-error line "
+            "and exit before reading stdin, mimicking 'Xcode not running'; "
+            "after-init: complete init handshake, then crash on the first "
+            "post-init request (tools/list, tools/call, ...)."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
 def main():
+    args = parse_args()
+
+    if args.fail == "at-startup":
+        sys.stderr.write(FATAL_NO_XCODE + "\n")
+        sys.stderr.flush()
+        sys.exit(134)
+
     state = State()
     log("started")
 
@@ -268,6 +302,16 @@ def main():
             log(f"parse error: {line[:120]}")
             continue
         log(f"recv: {line[:120]}")
+
+        if (
+            args.fail == "after-init"
+            and state.initialized
+            and req.get("method") != "notifications/initialized"
+        ):
+            sys.stderr.write("mcpbridge simulated mid-session crash\n")
+            sys.stderr.flush()
+            sys.exit(134)
+
         resp = handle(req, state, emit)
         if resp is not None:
             emit(resp)
