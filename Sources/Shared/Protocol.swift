@@ -38,12 +38,32 @@ public struct StatusResponse: Codable, Equatable, Sendable {
   public var connections: [ConnectionInfo]
   public var health: ServiceHealth
   public var tools: [ToolInfo]
+  public var bridge: BridgeStatus
 
-  public init(connections: [ConnectionInfo], health: ServiceHealth, tools: [ToolInfo] = []) {
+  public init(
+    connections: [ConnectionInfo],
+    health: ServiceHealth,
+    tools: [ToolInfo] = [],
+    bridge: BridgeStatus = .booting,
+  ) {
     self.connections = connections
     self.health = health
     self.tools = tools
+    self.bridge = bridge
   }
+}
+
+/// Lifecycle state of the underlying `xcrun mcpbridge` subprocess.
+/// Broadcast to UI clients so they can show the state of the tool pipeline
+/// independently of whether the XcodeMCPTap service itself is alive.
+public enum BridgeStatus: Codable, Equatable, Sendable {
+  /// Subprocess is starting or running its MCP initialize handshake.
+  case booting
+  /// Init handshake finished; the bridge is ready to accept tool calls.
+  case ready
+  /// The current bridge subprocess crashed or exited. `reason` carries
+  /// the last stderr line (e.g. `FATAL_NO_XCODE`) or a transport error.
+  case failed(reason: String)
 }
 
 public struct ConnectionInfo: Codable, Equatable, Sendable, Identifiable {
@@ -86,17 +106,8 @@ public struct ToolInfo: Codable, Equatable, Sendable, Identifiable {
   }
 }
 
-public struct StatusEvent: Codable, Equatable, Sendable {
-  public enum Kind: String, Codable, Equatable, Sendable {
-    case connectionOpened
-    case connectionClosed
-  }
-
-  public var kind: Kind
-  public var connection: ConnectionInfo
-
-  public init(kind: Kind, connection: ConnectionInfo) {
-    self.kind = kind
-    self.connection = connection
-  }
+public enum StatusEvent: Codable, Equatable, Sendable {
+  case connectionOpened(ConnectionInfo)
+  case connectionClosed(ConnectionInfo)
+  case bridgeStateChanged(BridgeStatus)
 }

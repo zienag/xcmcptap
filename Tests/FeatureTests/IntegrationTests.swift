@@ -10,11 +10,11 @@ struct IntegrationTests {
     for integration in integrations {
       #expect(
         integration.text.contains(clientPath),
-        "\(integration.id) should contain full client path when not on PATH"
+        "\(integration.id) should contain full client path when not on PATH",
       )
       #expect(
         !integration.text.contains("-- xcmcptap"),
-        "\(integration.id) should not use bare 'xcmcptap' argument when off PATH"
+        "\(integration.id) should not use bare 'xcmcptap' argument when off PATH",
       )
     }
   }
@@ -27,11 +27,11 @@ struct IntegrationTests {
     for integration in integrations {
       #expect(
         !integration.text.contains(clientPath),
-        "\(integration.id) should not contain user-specific path when on PATH"
+        "\(integration.id) should not contain user-specific path when on PATH",
       )
       #expect(
         integration.text.contains("xcmcptap"),
-        "\(integration.id) should still mention xcmcptap"
+        "\(integration.id) should still mention xcmcptap",
       )
     }
   }

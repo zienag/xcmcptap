@@ -12,7 +12,7 @@ public struct ToolsFeature {
     public init(
       searchText: String = "",
       selectedToolID: String? = nil,
-      tools: [ToolInfo] = []
+      tools: [ToolInfo] = [],
     ) {
       self.searchText = searchText
       self.selectedToolID = selectedToolID
@@ -56,11 +56,11 @@ public struct ToolsFeature {
     Reduce { state, action in
       switch action {
       case .binding(\.searchText):
-        return selectFirstIfNeeded(&state)
+        selectFirstIfNeeded(&state)
       case .binding:
-        return .none
+        .none
       case .onAppear, .searchTextChangedInternal, .toolsChangedInternal:
-        return selectFirstIfNeeded(&state)
+        selectFirstIfNeeded(&state)
       }
     }
   }

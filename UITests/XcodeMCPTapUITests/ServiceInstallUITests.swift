@@ -38,7 +38,7 @@ final class ServiceInstallUITests: XCTestCase {
     XCTAssertTrue(
       runningLabel.waitForExistence(timeout: 10),
       "xcmcptapd did not come up within 10s — most likely a broken agent plist "
-        + "(e.g. BundleProgram resolving to a path launchd can't find, EX_CONFIG)"
+        + "(e.g. BundleProgram resolving to a path launchd can't find, EX_CONFIG)",
     )
   }
 

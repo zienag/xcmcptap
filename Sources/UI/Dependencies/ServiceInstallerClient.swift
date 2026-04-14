@@ -29,14 +29,14 @@ extension ServiceInstallerClient: DependencyKey {
     clientPath: { ServiceInstaller.clientLinkPath },
     systemPath: { ServiceInstaller.systemLinkPath },
     plistPath: { ServiceInstaller.plistPath },
-    logPath: { ServiceInstaller.logPath }
+    logPath: { ServiceInstaller.logPath },
   )
 
   public static let testValue = ServiceInstallerClient()
 }
 
-extension DependencyValues {
-  public var serviceInstaller: ServiceInstallerClient {
+public extension DependencyValues {
+  var serviceInstaller: ServiceInstallerClient {
     get { self[ServiceInstallerClient.self] }
     set { self[ServiceInstallerClient.self] = newValue }
   }

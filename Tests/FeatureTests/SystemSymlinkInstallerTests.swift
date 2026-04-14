@@ -21,9 +21,9 @@ struct SystemSymlinkInstallerTests {
           },
           close: {
             events.withValue { $0.append("close") }
-          }
+          },
         )
-      }
+      },
     )
 
     let response = try await installer.install(source: "/some/xcmcptap")
@@ -35,7 +35,7 @@ struct SystemSymlinkInstallerTests {
         "open",
         #"send:installSymlink(sourcePath: "/some/xcmcptap")"#,
         "close",
-      ]
+      ],
     )
   }
 
@@ -51,9 +51,9 @@ struct SystemSymlinkInstallerTests {
             sent.withValue { $0.append(request) }
             return .success
           },
-          close: {}
+          close: {},
         )
-      }
+      },
     )
 
     let response = try await installer.uninstall()
@@ -71,7 +71,7 @@ struct SystemSymlinkInstallerTests {
       openHelperSession: {
         Issue.record("openHelperSession must not be called when register fails")
         return HelperSession(send: { _ in .success }, close: {})
-      }
+      },
     )
 
     do {
@@ -90,7 +90,7 @@ struct SystemSymlinkInstallerTests {
 
     let installer = SystemSymlinkInstaller(
       registerDaemon: {},
-      openHelperSession: { throw OpenError() }
+      openHelperSession: { throw OpenError() },
     )
 
     await #expect(throws: OpenError.self) {
@@ -105,9 +105,9 @@ struct SystemSymlinkInstallerTests {
       openHelperSession: {
         HelperSession(
           send: { _ in .failure(reason: "denied") },
-          close: {}
+          close: {},
         )
-      }
+      },
     )
 
     let response = try await installer.install(source: "/bin")
@@ -123,7 +123,7 @@ struct SystemSymlinkInstallerTests {
       openHelperSession: {
         opened.setValue(true)
         return HelperSession(send: { _ in .success }, close: {})
-      }
+      },
     )
 
     await #expect(throws: SystemSymlinkInstallerError.requiresApproval) {
@@ -142,9 +142,9 @@ struct SystemSymlinkInstallerTests {
       openHelperSession: {
         HelperSession(
           send: { _ in throw SendError() },
-          close: { closed.setValue(true) }
+          close: { closed.setValue(true) },
         )
-      }
+      },
     )
 
     _ = try? await installer.install(source: "/bin")

@@ -192,6 +192,49 @@ jobs:
           prerelease: false
           files: ${{ steps.dmg.outputs.path }}
 
+      - name: Update Homebrew tap
+        env:
+          TAP_TOKEN: ${{ secrets.TAP_REPO_TOKEN }}
+          DMG_PATH: ${{ steps.dmg.outputs.path }}
+          SHORT: ${{ steps.version.outputs.short }}
+        run: |
+          SHA=$(shasum -a 256 "$DMG_PATH" | awk '{print $1}')
+
+          TAP_DIR="$RUNNER_TEMP/homebrew-tap"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/zienag/homebrew-tap.git" "$TAP_DIR"
+
+          cat > "$TAP_DIR/Casks/xcmcptap.rb" <<EOF
+          cask "xcmcptap" do
+            version "${SHORT}"
+            sha256 "${SHA}"
+
+            url "https://github.com/zienag/xcmcptap/releases/download/v#{version}/XcodeMCPTap-#{version}.dmg"
+            name "Xcode MCP Tap"
+            desc "Persistent bridge that eliminates repeated Xcode MCP permission dialogs"
+            homepage "https://github.com/zienag/xcmcptap"
+
+            depends_on macos: ">= :tahoe"
+
+            app "Xcode MCP Tap.app"
+
+            zap trash: [
+              "~/Library/LaunchAgents/alfred.xcmcptap.plist",
+              "~/.local/bin/xcmcptap",
+            ]
+          end
+          EOF
+
+          cd "$TAP_DIR"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/xcmcptap.rb
+          if git diff --staged --quiet; then
+            echo "Cask unchanged, nothing to push"
+          else
+            git commit -m "xcmcptap ${SHORT}"
+            git push
+          fi
+
       - name: Clean up keychain
         if: always()
         run: |

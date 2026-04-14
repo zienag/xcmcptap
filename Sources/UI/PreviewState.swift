@@ -2,9 +2,9 @@ import struct Foundation.Date
 import struct Foundation.UUID
 import XcodeMCPTapShared
 
-extension AppFeature.State {
+public extension AppFeature.State {
   /// Fixed reference time for deterministic previews and snapshot tests.
-  public static let previewNow = Date(timeIntervalSince1970: 1_700_000_000)
+  static let previewNow = Date(timeIntervalSince1970: 1_700_000_000)
 
   /// Stable path values for deterministic snapshot output. Override the
   /// dependency-derived defaults, which vary by test runner / bundle location.
@@ -21,25 +21,42 @@ extension AppFeature.State {
     return state
   }
 
-  public static func previewRunning() -> AppFeature.State {
+  static func previewRunning() -> AppFeature.State {
     let now = previewNow
     return withPreviewPaths(
       AppFeature.State(
+        bridgeStatus: .ready,
         connections: sampleConnections(relativeTo: now),
         health: ServiceHealth(
           startedAt: now.addingTimeInterval(-(2 * 3600 + 47 * 60 + 12)),
           totalConnectionsServed: 18,
-          activeConnectionCount: 3
+          activeConnectionCount: 3,
         ),
         isInstalled: true,
         isServiceRunning: true,
         now: now,
-        tools: ToolsFeature.State(tools: sampleTools)
-      )
+        tools: ToolsFeature.State(tools: sampleTools),
+      ),
     )
   }
 
-  public static func previewIdle() -> AppFeature.State {
+  static func previewBridgeBooting() -> AppFeature.State {
+    var state = previewRunning()
+    state.bridgeStatus = .booting
+    state.connections = []
+    return state
+  }
+
+  static func previewBridgeFailed() -> AppFeature.State {
+    var state = previewRunning()
+    state.bridgeStatus = .failed(
+      reason: "mcpbridge unavailable: FATAL_NO_XCODE — launch Xcode to reconnect",
+    )
+    state.connections = []
+    return state
+  }
+
+  static func previewIdle() -> AppFeature.State {
     let now = previewNow
     return withPreviewPaths(
       AppFeature.State(
@@ -47,27 +64,27 @@ extension AppFeature.State {
         health: ServiceHealth(
           startedAt: now.addingTimeInterval(-42),
           totalConnectionsServed: 0,
-          activeConnectionCount: 0
+          activeConnectionCount: 0,
         ),
         isInstalled: true,
         isServiceRunning: true,
         now: now,
-        tools: ToolsFeature.State(tools: sampleTools)
-      )
+        tools: ToolsFeature.State(tools: sampleTools),
+      ),
     )
   }
 
-  public static func previewNotInstalled() -> AppFeature.State {
+  static func previewNotInstalled() -> AppFeature.State {
     withPreviewPaths(
       AppFeature.State(
         isInstalled: false,
         isServiceRunning: false,
-        now: previewNow
-      )
+        now: previewNow,
+      ),
     )
   }
 
-  public static let sampleTools: [ToolInfo] = [
+  static let sampleTools: [ToolInfo] = [
     .init(name: "BuildProject", description: "Builds an Xcode project and waits until the build completes."),
     .init(name: "GetBuildLog", description: "Gets the log of the current or most recently finished build with optional filtering."),
     .init(name: "GetTestList", description: "Returns the test list discovered for the current scheme."),
@@ -90,28 +107,28 @@ extension AppFeature.State {
     .init(name: "XcodeRefreshCodeIssuesInFile", description: "Forces Xcode to refresh diagnostics for a single file."),
   ]
 
-  public static func sampleConnections(relativeTo now: Date) -> [ConnectionInfo] {
+  static func sampleConnections(relativeTo now: Date) -> [ConnectionInfo] {
     [
       .init(
         id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
         connectedAt: now.addingTimeInterval(-1247),
         messagesRouted: 184,
         lastActivityAt: now.addingTimeInterval(-2),
-        bridgePID: 81234
+        bridgePID: 81234,
       ),
       .init(
         id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
         connectedAt: now.addingTimeInterval(-312),
         messagesRouted: 27,
         lastActivityAt: now.addingTimeInterval(-58),
-        bridgePID: 81245
+        bridgePID: 81245,
       ),
       .init(
         id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
         connectedAt: now.addingTimeInterval(-44),
         messagesRouted: 4,
         lastActivityAt: now.addingTimeInterval(-12),
-        bridgePID: 81260
+        bridgePID: 81260,
       ),
     ]
   }

@@ -1,5 +1,5 @@
-import class Foundation.JSONDecoder
 import struct Foundation.Data
+import class Foundation.JSONDecoder
 import struct Foundation.UUID
 import System
 import XcodeMCPTapService
@@ -16,11 +16,11 @@ final class RouterHarness: Sendable {
   init(exec: String, _ args: String...) {
     let capturedExec = exec
     let capturedArgs = args
-    self.router = MCPRouter(makeConnection: {
+    router = MCPRouter(makeConnection: {
       MCPConnection(exec: capturedExec, args: capturedArgs)
     })
-    self.collector = ResponseCollector()
-    self.clientID = router.registerClient { [collector] line in
+    collector = ResponseCollector()
+    clientID = router.registerClient { [collector] line in
       collector.continuation.yield(line)
     }
     router.start()
@@ -36,7 +36,7 @@ final class RouterHarness: Sendable {
 
   func sendInitialize(id: Int = 1) {
     send(
-      #"{"jsonrpc":"2.0","id":\#(id),"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
+      #"{"jsonrpc":"2.0","id":\#(id),"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#,
     )
   }
 

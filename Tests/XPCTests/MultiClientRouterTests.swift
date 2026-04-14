@@ -1,6 +1,6 @@
-import class Foundation.JSONDecoder
 import struct Foundation.Data
 import struct Foundation.Decimal
+import class Foundation.JSONDecoder
 import struct Foundation.UUID
 import Testing
 import XcodeMCPTapService
@@ -19,7 +19,7 @@ struct MultiClientRouterTests {
     router: MCPRouter,
     connection: MCPConnection,
     a: (id: UUID, responses: ResponseCollector),
-    b: (id: UUID, responses: ResponseCollector)
+    b: (id: UUID, responses: ResponseCollector),
   ) {
     let connection = MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
     let router = MCPRouter(connection: connection)
@@ -38,11 +38,11 @@ struct MultiClientRouterTests {
   private func initializeClient(_ router: MCPRouter, id: UUID) {
     router.handleClientMessage(
       from: id,
-      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#
+      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}"#,
     )
     router.handleClientMessage(
       from: id,
-      #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#
+      #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
     )
   }
 
@@ -62,11 +62,11 @@ struct MultiClientRouterTests {
     // the correct echo back.
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"from-A","tabIdentifier":"t1"}}}"#
+      #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"from-A","tabIdentifier":"t1"}}}"#,
     )
     router.handleClientMessage(
       from: b.id,
-      #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"from-B","tabIdentifier":"t2"}}}"#
+      #"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"from-B","tabIdentifier":"t2"}}}"#,
     )
 
     let rawA = try await a.responses.nextResponse()
@@ -96,7 +96,7 @@ struct MultiClientRouterTests {
 
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"only-A","tabIdentifier":"t1"}}}"#
+      #"{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"only-A","tabIdentifier":"t1"}}}"#,
     )
 
     let rawA = try await a.responses.nextResponse()
@@ -123,7 +123,7 @@ struct MultiClientRouterTests {
     // A fires a request then disconnects before the response arrives.
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"A","tabIdentifier":"t1"}}}"#
+      #"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"A","tabIdentifier":"t1"}}}"#,
     )
     router.unregisterClient(id: a.id)
 
@@ -132,7 +132,7 @@ struct MultiClientRouterTests {
     _ = try await b.responses.nextResponse()
     router.handleClientMessage(
       from: b.id,
-      #"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"from-B","tabIdentifier":"t2"}}}"#
+      #"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"from-B","tabIdentifier":"t2"}}}"#,
     )
     let rawB = try await b.responses.nextResponse()
     let envB = try JSONDecoder().decode(RPCEnvelope.self, from: Data(rawB.utf8))
@@ -170,7 +170,7 @@ struct MultiClientRouterTests {
     }
     router.handleClientMessage(
       from: late,
-      #"{"jsonrpc":"2.0","id":99,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"late","version":"1.0"}}}"#
+      #"{"jsonrpc":"2.0","id":99,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"late","version":"1.0"}}}"#,
     )
 
     let raw = try await lateResponses.nextResponse()
@@ -193,11 +193,11 @@ struct MultiClientRouterTests {
     initializeClient(router, id: b.id)
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"buffered-A","tabIdentifier":"t1"}}}"#
+      #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"buffered-A","tabIdentifier":"t1"}}}"#,
     )
     router.handleClientMessage(
       from: b.id,
-      #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"buffered-B","tabIdentifier":"t2"}}}"#
+      #"{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"buffered-B","tabIdentifier":"t2"}}}"#,
     )
 
     // Each side sees its init reply + its tools/call reply, in that order.
@@ -238,11 +238,11 @@ struct MultiClientRouterTests {
     // token back as a progress notification before the final response.
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"__emit_progress","arguments":{},"_meta":{"progressToken":7}}}"#
+      #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"__emit_progress","arguments":{},"_meta":{"progressToken":7}}}"#,
     )
     router.handleClientMessage(
       from: b.id,
-      #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"__emit_progress","arguments":{},"_meta":{"progressToken":7}}}"#
+      #"{"jsonrpc":"2.0","id":20,"method":"tools/call","params":{"name":"__emit_progress","arguments":{},"_meta":{"progressToken":7}}}"#,
     )
 
     try await assertProgressThenResult(a.responses, expectedToken: 7, expectedResponseId: 20)
@@ -264,7 +264,7 @@ struct MultiClientRouterTests {
     // A triggers a broadcast via the probe tool.
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"__emit_broadcast","arguments":{}}}"#
+      #"{"jsonrpc":"2.0","id":30,"method":"tools/call","params":{"name":"__emit_broadcast","arguments":{}}}"#,
     )
 
     // Both A and B must receive the broadcast; A additionally receives
@@ -293,27 +293,27 @@ struct MultiClientRouterTests {
     // rewrite happens while `idMap` still has the entry.
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":55,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"x","tabIdentifier":"t1"}}}"#
+      #"{"jsonrpc":"2.0","id":55,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{"pattern":"x","tabIdentifier":"t1"}}}"#,
     )
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":55,"reason":"test"}}"#
+      #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":55,"reason":"test"}}"#,
     )
-    _ = try await a.responses.nextResponse()  // drain the XcodeGrep reply
+    _ = try await a.responses.nextResponse() // drain the XcodeGrep reply
 
     // Probe the mock: what requestId did it actually see for that cancel?
     router.handleClientMessage(
       from: a.id,
-      #"{"jsonrpc":"2.0","id":56,"method":"tools/call","params":{"name":"__last_cancel","arguments":{}}}"#
+      #"{"jsonrpc":"2.0","id":56,"method":"tools/call","params":{"name":"__last_cancel","arguments":{}}}"#,
     )
     let raw = try await a.responses.nextResponse()
     let env = try JSONDecoder().decode(RPCEnvelope.self, from: Data(raw.utf8))
     #expect(env.id == 56)
 
-    guard case .object(let result)? = env.rest["result"],
-          case .array(let content)? = result["content"],
-          case .object(let first)? = content.first,
-          case .string(let text)? = first["text"]
+    guard case let .object(result)? = env.rest["result"],
+          case let .array(content)? = result["content"],
+          case let .object(first)? = content.first,
+          case let .string(text)? = first["text"]
     else {
       Issue.record("unexpected shape")
       return
@@ -329,14 +329,15 @@ struct MultiClientRouterTests {
   private func assertProgressThenResult(
     _ collector: ResponseCollector,
     expectedToken: Int,
-    expectedResponseId: Int
+    expectedResponseId: Int,
   ) async throws {
     let first = try await collector.nextResponse()
     let firstEnv = try JSONDecoder().decode(RPCEnvelope.self, from: Data(first.utf8))
     #expect(firstEnv.method == "notifications/progress")
 
-    guard case .object(let params)? = firstEnv.rest["params"],
-          let token = params["progressToken"] else {
+    guard case let .object(params)? = firstEnv.rest["params"],
+          let token = params["progressToken"]
+    else {
       Issue.record("missing progressToken")
       return
     }
@@ -361,18 +362,18 @@ struct MultiClientRouterTests {
   }
 
   private func extractEchoedPattern(from envelope: RPCEnvelope) throws -> String {
-    guard case .object(let result)? = envelope.rest["result"],
-          case .array(let content)? = result["content"],
-          case .object(let first)? = content.first,
-          case .string(let text)? = first["text"]
+    guard case let .object(result)? = envelope.rest["result"],
+          case let .array(content)? = result["content"],
+          case let .object(first)? = content.first,
+          case let .string(text)? = first["text"]
     else {
       throw ExtractError.badShape
     }
     let echoed = try JSONDecoder().decode(
-      RPCEnvelope.self, from: Data(text.utf8)
+      RPCEnvelope.self, from: Data(text.utf8),
     )
-    guard case .object(let args)? = echoed.rest["arguments"],
-          case .string(let pattern)? = args["pattern"]
+    guard case let .object(args)? = echoed.rest["arguments"],
+          case let .string(pattern)? = args["pattern"]
     else {
       throw ExtractError.badShape
     }

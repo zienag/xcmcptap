@@ -1,7 +1,7 @@
 import struct Foundation.UUID
 import Synchronization
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 public final class StatusEndpoint: Sendable {
   private let registry: ConnectionRegistry
@@ -13,7 +13,7 @@ public final class StatusEndpoint: Sendable {
 
   public func start() throws -> XPCListener {
     let listener = try XPCListener(
-      service: MCPTap.statusServiceName
+      service: MCPTap.statusServiceName,
     ) { [self] request in
       let sessionID = UUID()
 
@@ -23,7 +23,7 @@ public final class StatusEndpoint: Sendable {
         },
         cancellationHandler: { [self, sessionID] _ in
           sessions.withLock { _ = $0.removeValue(forKey: sessionID) }
-        }
+        },
       )
 
       sessions.withLock { $0[sessionID] = session }

@@ -13,7 +13,9 @@ final class ResponseCollector: Sendable {
   func nextResponse(timeout: Duration = .seconds(5)) async throws -> String {
     try await withThrowingTaskGroup(of: String?.self) { group in
       group.addTask {
-        for await line in self.stream { return line }
+        for await line in self.stream {
+          return line
+        }
         return nil
       }
       group.addTask {

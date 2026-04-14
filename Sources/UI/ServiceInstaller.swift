@@ -3,12 +3,12 @@ import Dispatch
 import class Foundation.Bundle
 import class Foundation.FileHandle
 import class Foundation.FileManager
-import class Foundation.Process
 import func Foundation.NSHomeDirectory
+import class Foundation.Process
 import struct Foundation.URL
 import ServiceManagement
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 public enum ServiceInstaller {
   private static let uid = getuid()
@@ -132,7 +132,7 @@ public enum ServiceInstaller {
   }
 
   private static func runHelperFlow(
-    _ operation: @Sendable @escaping (SystemSymlinkInstaller) async throws -> HelperResponse
+    _ operation: @Sendable @escaping (SystemSymlinkInstaller) async throws -> HelperResponse,
   ) {
     let installer = SystemSymlinkInstaller.live
     let semaphore = DispatchSemaphore(value: 0)
@@ -141,7 +141,7 @@ public enum ServiceInstaller {
       defer { semaphore.signal() }
       do {
         let response = try await operation(installer)
-        if case .failure(let reason) = response {
+        if case let .failure(reason) = response {
           fputs("helper returned failure: \(reason)\n", stderr)
         }
       } catch SystemSymlinkInstallerError.requiresApproval {

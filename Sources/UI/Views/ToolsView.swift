@@ -30,7 +30,7 @@ public struct ToolsView: View {
 
   private var toolList: some View {
     List(selection: $store.selectedToolID) {
-      ForEach(store.groupedTools, id: \.0) { (category, tools) in
+      ForEach(store.groupedTools, id: \.0) { category, tools in
         Section {
           ForEach(tools) { tool in
             ToolListRow(tool: tool)
@@ -136,17 +136,17 @@ private struct ToolDetailView: View {
 }
 
 #if DEBUG
-#Preview("Populated") {
-  ToolsView(
-    store: Store(
-      initialState: ToolsFeature.State(tools: AppFeature.State.sampleTools)
-    ) { ToolsFeature() }
-  )
-  .frame(width: 820, height: 600)
-}
-
-#Preview("Empty") {
-  ToolsView(store: Store(initialState: ToolsFeature.State()) { ToolsFeature() })
+  #Preview("Populated") {
+    ToolsView(
+      store: Store(
+        initialState: ToolsFeature.State(tools: AppFeature.State.sampleTools),
+      ) { ToolsFeature() },
+    )
     .frame(width: 820, height: 600)
-}
+  }
+
+  #Preview("Empty") {
+    ToolsView(store: Store(initialState: ToolsFeature.State()) { ToolsFeature() })
+      .frame(width: 820, height: 600)
+  }
 #endif

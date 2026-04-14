@@ -1,10 +1,10 @@
+import Darwin.C
+import struct Foundation.Data
+import protocol Foundation.DataProtocol
+import struct Foundation.Decimal
 import class Foundation.JSONDecoder
 import class Foundation.JSONEncoder
 import class Foundation.NSDecimalNumber
-import protocol Foundation.DataProtocol
-import struct Foundation.Data
-import struct Foundation.Decimal
-import Darwin.C
 import XcodeMCPTapShared
 
 /// Thin JSON-RPC layer over a subprocess transport.
@@ -74,7 +74,7 @@ public actor MCPConnection {
         input: writeStream,
         output: readCont,
         stderr: errCont,
-        pid: pidCont
+        pid: pidCont,
       )
       await bridge.run()
     }
@@ -109,7 +109,7 @@ public actor MCPConnection {
       rest: [
         "jsonrpc": "2.0",
         "params": params,
-      ]
+      ],
     )
     let data = try JSONEncoder().encode(envelope)
     return try await withCheckedThrowingContinuation { cont in
@@ -159,7 +159,8 @@ public actor MCPConnection {
   private func readLoop() async {
     for await line in reads {
       if let envelope = try? JSONDecoder().decode(RPCEnvelope.self, from: Data(line)),
-         case .number(let n)? = envelope.id {
+         case let .number(n)? = envelope.id
+      {
         let id = NSDecimalNumber(decimal: n).intValue
         if id < 0, let cont = pending.removeValue(forKey: id) {
           cont.resume(returning: envelope)

@@ -1,5 +1,5 @@
-import protocol Foundation.DataProtocol
 import Darwin.C
+import protocol Foundation.DataProtocol
 import os
 import Subprocess
 import System
@@ -45,7 +45,7 @@ struct BridgeProcess: ~Copyable, Sendable {
     input: AsyncStream<[UInt8]>,
     output: AsyncStream<[UInt8]>.Continuation,
     stderr: AsyncStream<[UInt8]>.Continuation,
-    pid: AsyncStream<pid_t>.Continuation
+    pid: AsyncStream<pid_t>.Continuation,
   ) {
     self.exec = exec
     self.args = args
@@ -74,7 +74,7 @@ struct BridgeProcess: ~Copyable, Sendable {
       _ = try await Subprocess.run(
         .path(FilePath(path)),
         arguments: Arguments(arguments),
-        preferredBufferSize: 1
+        preferredBufferSize: 1,
       ) { execution, inputWriter, outputSequence, errorSequence in
         log.info("spawned pid=\(execution.processIdentifier.value, privacy: .public) exec=\(path, privacy: .public)")
         pidSink.yield(execution.processIdentifier.value)
@@ -113,7 +113,7 @@ struct BridgeProcess: ~Copyable, Sendable {
   /// each complete line to the output continuation.
   private static func drainLines(
     _ sequence: some AsyncSequence<AsyncBufferSequence.Buffer, any Error>,
-    into continuation: AsyncStream<[UInt8]>.Continuation
+    into continuation: AsyncStream<[UInt8]>.Continuation,
   ) async {
     var current: [UInt8] = []
     do {
@@ -142,7 +142,7 @@ struct BridgeProcess: ~Copyable, Sendable {
   /// or the owning task is cancelled.
   private static func pumpInput(
     _ stream: AsyncStream<[UInt8]>,
-    to writer: StandardInputWriter
+    to writer: StandardInputWriter,
   ) async {
     for await bytes in stream {
       if Task.isCancelled { break }
@@ -158,7 +158,7 @@ struct BridgeProcess: ~Copyable, Sendable {
   /// failure reasons to its own clients.
   private static func drainStderr(
     _ sequence: some AsyncSequence<AsyncBufferSequence.Buffer, any Error>,
-    into continuation: AsyncStream<[UInt8]>.Continuation
+    into continuation: AsyncStream<[UInt8]>.Continuation,
   ) async {
     var current: [UInt8] = []
     func flush() {

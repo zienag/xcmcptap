@@ -14,7 +14,7 @@ struct BundledPlistTests {
   func agentPlistPointsIntoContentsMacOS() throws {
     try assertBundleProgram(
       relativePath: "App/LaunchAgents/alfred.xcmcptap.plist",
-      expectedBinary: "xcmcptapd"
+      expectedBinary: "xcmcptapd",
     )
   }
 
@@ -22,7 +22,7 @@ struct BundledPlistTests {
   func helperDaemonPlistPointsIntoContentsMacOS() throws {
     try assertBundleProgram(
       relativePath: "App/LaunchDaemons/alfred.xcmcptap.helper.plist",
-      expectedBinary: "xcmcptap-helper"
+      expectedBinary: "xcmcptap-helper",
     )
   }
 
@@ -30,12 +30,12 @@ struct BundledPlistTests {
     relativePath: String,
     expectedBinary: String,
     sourceLocation: SourceLocation = #_sourceLocation,
-    filePath: String = #filePath
+    filePath: String = #filePath,
   ) throws {
     let packageRoot = URL(fileURLWithPath: filePath)
-      .deletingLastPathComponent()  // Tests/FeatureTests/
-      .deletingLastPathComponent()  // Tests/
-      .deletingLastPathComponent()  // package root
+      .deletingLastPathComponent() // Tests/FeatureTests/
+      .deletingLastPathComponent() // Tests/
+      .deletingLastPathComponent() // package root
     let plistURL = packageRoot.appendingPathComponent(relativePath)
     let data = try Data(contentsOf: plistURL)
     let plist = try PropertyListSerialization.propertyList(from: data, format: nil)
@@ -45,7 +45,7 @@ struct BundledPlistTests {
     #expect(
       bundleProgram == "Contents/MacOS/\(expectedBinary)",
       "BundleProgram must be rooted at 'Contents/MacOS/' — launchd resolves it relative to the bundle root, not Contents/.",
-      sourceLocation: sourceLocation
+      sourceLocation: sourceLocation,
     )
   }
 }

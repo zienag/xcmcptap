@@ -5,7 +5,7 @@ import Testing
 import XcodeMCPTapUI
 
 @MainActor
-@Suite(.snapshots(record: .missing))
+@Suite
 struct ToolsViewSnapshotTests {
   static let size = CGSize(width: 820, height: 520)
 
@@ -17,11 +17,11 @@ struct ToolsViewSnapshotTests {
         store: Store(
           initialState: ToolsFeature.State(
             selectedToolID: tools.first?.id,
-            tools: tools
-          )
-        ) { ToolsFeature() }
+            tools: tools,
+          ),
+        ) { ToolsFeature() },
       ),
-      size: Self.size
+      size: Self.size,
     )
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }
@@ -30,7 +30,7 @@ struct ToolsViewSnapshotTests {
   func empty() {
     let controller = hostedInWindow(
       ToolsView(store: Store(initialState: ToolsFeature.State()) { ToolsFeature() }),
-      size: Self.size
+      size: Self.size,
     )
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }
@@ -42,11 +42,11 @@ struct ToolsViewSnapshotTests {
         store: Store(
           initialState: ToolsFeature.State(
             searchText: "build",
-            tools: AppFeature.State.sampleTools
-          )
-        ) { ToolsFeature() }
+            tools: AppFeature.State.sampleTools,
+          ),
+        ) { ToolsFeature() },
       ),
-      size: Self.size
+      size: Self.size,
     )
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }
@@ -58,11 +58,11 @@ struct ToolsViewSnapshotTests {
         store: Store(
           initialState: ToolsFeature.State(
             searchText: "zzz",
-            tools: AppFeature.State.sampleTools
-          )
-        ) { ToolsFeature() }
+            tools: AppFeature.State.sampleTools,
+          ),
+        ) { ToolsFeature() },
       ),
-      size: Self.size
+      size: Self.size,
     )
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }
@@ -75,12 +75,12 @@ struct ToolsViewSnapshotTests {
         store: Store(
           initialState: ToolsFeature.State(
             selectedToolID: tools.first?.id,
-            tools: tools
-          )
-        ) { ToolsFeature() }
+            tools: tools,
+          ),
+        ) { ToolsFeature() },
       )
       .environment(\.layoutDirection, .rightToLeft),
-      size: Self.size
+      size: Self.size,
     )
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }

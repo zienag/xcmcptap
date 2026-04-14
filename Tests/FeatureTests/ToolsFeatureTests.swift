@@ -14,7 +14,7 @@ struct ToolsFeatureTests {
   @Test
   func onAppearSelectsFirstTool() async {
     let store = TestStore(
-      initialState: ToolsFeature.State(tools: Self.tools)
+      initialState: ToolsFeature.State(tools: Self.tools),
     ) {
       ToolsFeature()
     }
@@ -29,8 +29,8 @@ struct ToolsFeatureTests {
     let store = TestStore(
       initialState: ToolsFeature.State(
         selectedToolID: "XcodeRead",
-        tools: Self.tools
-      )
+        tools: Self.tools,
+      ),
     ) {
       ToolsFeature()
     }
@@ -43,8 +43,8 @@ struct ToolsFeatureTests {
     let store = TestStore(
       initialState: ToolsFeature.State(
         selectedToolID: "XcodeRead",
-        tools: Self.tools
-      )
+        tools: Self.tools,
+      ),
     ) {
       ToolsFeature()
     }
@@ -60,8 +60,8 @@ struct ToolsFeatureTests {
     let store = TestStore(
       initialState: ToolsFeature.State(
         selectedToolID: "XcodeRead",
-        tools: Self.tools
-      )
+        tools: Self.tools,
+      ),
     ) {
       ToolsFeature()
     }
@@ -76,8 +76,8 @@ struct ToolsFeatureTests {
     let store = TestStore(
       initialState: ToolsFeature.State(
         selectedToolID: "BuildProject",
-        tools: Self.tools
-      )
+        tools: Self.tools,
+      ),
     ) {
       ToolsFeature()
     }
@@ -93,8 +93,8 @@ struct ToolsFeatureTests {
     let store = TestStore(
       initialState: ToolsFeature.State(
         selectedToolID: "GoneTool",
-        tools: Self.tools
-      )
+        tools: Self.tools,
+      ),
     ) {
       ToolsFeature()
     }

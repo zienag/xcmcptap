@@ -24,7 +24,7 @@ public enum JSONValue: Codable, Sendable, Equatable {
       self = .object(o)
     } else {
       throw DecodingError.dataCorruptedError(
-        in: container, debugDescription: "Unsupported JSON value"
+        in: container, debugDescription: "Unsupported JSON value",
       )
     }
   }
@@ -32,12 +32,12 @@ public enum JSONValue: Codable, Sendable, Equatable {
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
     switch self {
-    case .string(let s): try container.encode(s)
-    case .number(let n): try container.encode(n)
-    case .bool(let b): try container.encode(b)
+    case let .string(s): try container.encode(s)
+    case let .number(n): try container.encode(n)
+    case let .bool(b): try container.encode(b)
     case .null: try container.encodeNil()
-    case .array(let a): try container.encode(a)
-    case .object(let o): try container.encode(o)
+    case let .array(a): try container.encode(a)
+    case let .object(o): try container.encode(o)
     }
   }
 }
@@ -69,5 +69,5 @@ extension JSONValue: ExpressibleByDictionaryLiteral {
 }
 
 extension JSONValue: ExpressibleByNilLiteral {
-  public init(nilLiteral: ()) { self = .null }
+  public init(nilLiteral _: ()) { self = .null }
 }

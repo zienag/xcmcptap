@@ -1,6 +1,6 @@
 import ComposableArchitecture
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 @DependencyClient
 public struct StatusClient: Sendable {
@@ -13,15 +13,15 @@ extension StatusClient: DependencyKey {
     let connection = StatusConnection()
     return StatusClient(
       fetch: { try await connection.fetch() },
-      events: { connection.events }
+      events: { connection.events },
     )
   }()
 
   public static let testValue = StatusClient()
 }
 
-extension DependencyValues {
-  public var statusClient: StatusClient {
+public extension DependencyValues {
+  var statusClient: StatusClient {
     get { self[StatusClient.self] }
     set { self[StatusClient.self] = newValue }
   }
@@ -34,8 +34,8 @@ private final actor StatusConnection {
 
   init() {
     var c: AsyncStream<StatusEvent>.Continuation!
-    self.events = AsyncStream { c = $0 }
-    self.continuation = c
+    events = AsyncStream { c = $0 }
+    continuation = c
   }
 
   func fetch() async throws -> StatusResponse {
@@ -56,7 +56,7 @@ private final actor StatusConnection {
       },
       cancellationHandler: { [weak self] _ in
         Task { await self?.clearSession() }
-      }
+      },
     )
     self.session = session
     return session

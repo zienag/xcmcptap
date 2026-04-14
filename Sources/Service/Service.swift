@@ -2,8 +2,8 @@ import Darwin
 import class Foundation.FileManager
 import func Foundation.NSHomeDirectory
 import struct Foundation.UUID
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 public enum ServiceMain {
   /// Redirects stdout/stderr to a per-user log file. The bundled LaunchAgent
@@ -41,37 +41,55 @@ public enum ServiceMain {
     router.onToolsDiscovered = { tools in
       registry.updateTools(tools)
     }
+    router.onBridgeStateChanged = { status in
+      registry.updateBridge(status)
+    }
+
+    // Proactively flip the bridge to .failed the moment Xcode quits, so
+    // the UI doesn't keep showing a stale .ready until the next tool
+    // call surfaces the failure. On launch we just log — auto-respawn
+    // is driven by the next client request via the router's existing
+    // recovery path.
+    let xcodeMonitor = XcodeLifecycleMonitor(
+      onTerminated: {
+        fputs("[service] Xcode terminated — marking bridge unavailable\n", stderr)
+        Task { await router.markBridgeUnavailable(reason: "Xcode not running") }
+      },
+      onLaunched: {
+        fputs("[service] Xcode launched — bridge will respawn on next request\n", stderr)
+      },
+    )
 
     router.start()
 
     let listener: XPCListener
     do {
       listener = try XPCListener(service: MCPTap.serviceName) { request in
-      fputs("[service] new XPC connection\n", stderr)
-      let connectionID = UUID()
+        fputs("[service] new XPC connection\n", stderr)
+        let connectionID = UUID()
 
-      let (decision, session) = request.accept(
-        incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
-          fputs("[service] received from client: \(message.content.prefix(100))\n", stderr)
-          registry.recordMessage(id: connectionID)
-          router.handleClientMessage(from: connectionID, message.content)
-          return nil
-        },
-        cancellationHandler: { _ in
-          fputs("[service] connection cancelled\n", stderr)
-          router.unregisterClient(id: connectionID)
-          registry.unregister(id: connectionID)
+        let (decision, session) = request.accept(
+          incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
+            fputs("[service] received from client: \(message.content.prefix(100))\n", stderr)
+            registry.recordMessage(id: connectionID)
+            router.handleClientMessage(from: connectionID, message.content)
+            return nil
+          },
+          cancellationHandler: { _ in
+            fputs("[service] connection cancelled\n", stderr)
+            router.unregisterClient(id: connectionID)
+            registry.unregister(id: connectionID)
+          },
+        )
+
+        _ = router.registerClient(id: connectionID) { line in
+          fputs("[service] sending to client: \(line.prefix(100))\n", stderr)
+          try? session.send(MCPLine(line))
         }
-      )
 
-      _ = router.registerClient(id: connectionID) { line in
-        fputs("[service] sending to client: \(line.prefix(100))\n", stderr)
-        try? session.send(MCPLine(line))
-      }
-
-      // Bridge PID is not meaningful across respawns; report 0.
-      _ = registry.register(id: connectionID, bridgePID: 0)
-      return decision
+        // Bridge PID is not meaningful across respawns; report 0.
+        _ = registry.register(id: connectionID, bridgePID: 0)
+        return decision
       }
     } catch {
       fputs("[service] failed to activate MCP listener: \(error)\n", stderr)
@@ -87,7 +105,7 @@ public enum ServiceMain {
     }
     fputs("[service] listeners ready\n", stderr)
 
-    withExtendedLifetime((listener, statusListener, router)) {
+    withExtendedLifetime((listener, statusListener, router, xcodeMonitor)) {
       dispatchMain()
     }
   }

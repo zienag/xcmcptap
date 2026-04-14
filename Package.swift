@@ -21,7 +21,7 @@ let package = Package(
     .target(
       name: "XcodeMCPTapClient",
       dependencies: ["XcodeMCPTapShared"],
-      path: "Sources/Client"
+      path: "Sources/Client",
     ),
     .target(
       name: "XcodeMCPTapService",
@@ -29,12 +29,12 @@ let package = Package(
         "XcodeMCPTapShared",
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
-      path: "Sources/Service"
+      path: "Sources/Service",
     ),
     .target(
       name: "XcodeMCPTapHelper",
       dependencies: ["XcodeMCPTapShared"],
-      path: "Sources/Helper"
+      path: "Sources/Helper",
     ),
     .target(
       name: "XcodeMCPTapUI",
@@ -42,17 +42,17 @@ let package = Package(
         "XcodeMCPTapShared",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       ],
-      path: "Sources/UI"
+      path: "Sources/UI",
     ),
     .executableTarget(
       name: "xpc-test-echo-server",
       dependencies: ["XcodeMCPTapShared"],
-      path: "Sources/TestEchoServer"
+      path: "Sources/TestEchoServer",
     ),
     .executableTarget(
       name: "xcmcptap-helper",
       dependencies: ["XcodeMCPTapHelper"],
-      path: "Sources/HelperExec"
+      path: "Sources/HelperExec",
     ),
     .testTarget(
       name: "XPCTests",
@@ -62,7 +62,7 @@ let package = Package(
         "XcodeMCPTapHelper",
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
-      path: "Tests/XPCTests"
+      path: "Tests/XPCTests",
     ),
     .testTarget(
       name: "UISnapshotTests",
@@ -70,7 +70,7 @@ let package = Package(
         "XcodeMCPTapUI",
         .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
       ],
-      path: "Tests/UISnapshotTests"
+      path: "Tests/UISnapshotTests",
     ),
     .testTarget(
       name: "FeatureTests",
@@ -78,7 +78,7 @@ let package = Package(
         "XcodeMCPTapUI",
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       ],
-      path: "Tests/FeatureTests"
+      path: "Tests/FeatureTests",
     ),
-  ]
+  ],
 )

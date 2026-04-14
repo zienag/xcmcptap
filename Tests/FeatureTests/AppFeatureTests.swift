@@ -11,18 +11,17 @@ private let testConnection = ConnectionInfo(
   connectedAt: testNow.addingTimeInterval(-10),
   messagesRouted: 5,
   lastActivityAt: testNow.addingTimeInterval(-1),
-  bridgePID: 42
+  bridgePID: 42,
 )
 private let testHealth = ServiceHealth(
   startedAt: testNow.addingTimeInterval(-60),
   totalConnectionsServed: 3,
-  activeConnectionCount: 1
+  activeConnectionCount: 1,
 )
 private let testTool = ToolInfo(name: "BuildProject", description: "Build")
 
 @MainActor
 struct AppFeatureTests {
-
   @Test
   func statusResponsePopulatesStateAndNotifiesTools() async {
     let store = TestStore(initialState: AppFeature.State()) {
@@ -32,13 +31,15 @@ struct AppFeatureTests {
     let response = StatusResponse(
       connections: [testConnection],
       health: testHealth,
-      tools: [testTool]
+      tools: [testTool],
+      bridge: .ready,
     )
 
     await store.send(.statusResponse(response)) {
       $0.connections = [testConnection]
       $0.health = testHealth
       $0.tools.tools = [testTool]
+      $0.bridgeStatus = .ready
       $0.isServiceRunning = true
     }
 
@@ -54,6 +55,7 @@ struct AppFeatureTests {
     initial.health = testHealth
     initial.tools.tools = [testTool]
     initial.isServiceRunning = true
+    initial.bridgeStatus = .ready
 
     let store = TestStore(initialState: initial) {
       AppFeature()
@@ -64,6 +66,7 @@ struct AppFeatureTests {
       $0.health = nil
       $0.tools.tools = []
       $0.isServiceRunning = false
+      $0.bridgeStatus = .booting
     }
   }
 
@@ -73,7 +76,7 @@ struct AppFeatureTests {
       AppFeature()
     }
 
-    await store.send(.statusEvent(StatusEvent(kind: .connectionOpened, connection: testConnection))) {
+    await store.send(.statusEvent(.connectionOpened(testConnection))) {
       $0.connections = [testConnection]
     }
   }
@@ -87,7 +90,7 @@ struct AppFeatureTests {
       AppFeature()
     }
 
-    await store.send(.statusEvent(StatusEvent(kind: .connectionOpened, connection: testConnection)))
+    await store.send(.statusEvent(.connectionOpened(testConnection)))
   }
 
   @Test
@@ -99,8 +102,27 @@ struct AppFeatureTests {
       AppFeature()
     }
 
-    await store.send(.statusEvent(StatusEvent(kind: .connectionClosed, connection: testConnection))) {
+    await store.send(.statusEvent(.connectionClosed(testConnection))) {
       $0.connections = []
+    }
+  }
+
+  @Test
+  func bridgeStateChangedEventUpdatesStatus() async {
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+
+    await store.send(.statusEvent(.bridgeStateChanged(.ready))) {
+      $0.bridgeStatus = .ready
+    }
+
+    await store.send(.statusEvent(.bridgeStateChanged(.failed(reason: "Xcode not running")))) {
+      $0.bridgeStatus = .failed(reason: "Xcode not running")
+    }
+
+    await store.send(.statusEvent(.bridgeStateChanged(.booting))) {
+      $0.bridgeStatus = .booting
     }
   }
 
@@ -122,7 +144,7 @@ struct AppFeatureTests {
     let response = StatusResponse(
       connections: [],
       health: testHealth,
-      tools: []
+      tools: [],
     )
 
     let store = TestStore(initialState: AppFeature.State()) {
@@ -158,10 +180,11 @@ struct AppFeatureTests {
   func uninstallDelegateCallsInstallerAndClearsState() async {
     let uninstallCalls = LockIsolated(0)
     var initial = AppFeature.State(
+      bridgeStatus: .ready,
       connections: [testConnection],
       health: testHealth,
       isInstalled: true,
-      isServiceRunning: true
+      isServiceRunning: true,
     )
     initial.tools.tools = [testTool]
 
@@ -172,6 +195,7 @@ struct AppFeatureTests {
     }
 
     await store.send(.settings(.delegate(.uninstall))) {
+      $0.bridgeStatus = .booting
       $0.connections = []
       $0.health = nil
       $0.isInstalled = false
@@ -188,7 +212,7 @@ struct AppFeatureTests {
     }
 
     await store.send(
-      .installStatusRefreshed(isInstalled: true, requiresApproval: false, isOnSystemPath: true)
+      .installStatusRefreshed(isInstalled: true, requiresApproval: false, isOnSystemPath: true),
     ) {
       $0.isInstalled = true
       $0.requiresApproval = false

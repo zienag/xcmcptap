@@ -1,7 +1,7 @@
-import class Foundation.JSONDecoder
-import class Foundation.NSDecimalNumber
 import struct Foundation.Data
 import struct Foundation.Decimal
+import class Foundation.JSONDecoder
+import class Foundation.NSDecimalNumber
 import Testing
 import XcodeMCPTapService
 import XcodeMCPTapShared
@@ -50,7 +50,7 @@ struct BridgeFailureTests {
     defer { Task { await h.terminate() } }
 
     h.send(
-      #"{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{}}}"#
+      #"{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{}}}"#,
     )
     let envelope = try await h.nextResponse()
     #expect(envelope.id == .number(Decimal(99)))
@@ -66,7 +66,7 @@ struct BridgeFailureTests {
 
     h.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
     h.send(
-      #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1,"reason":"x"}}"#
+      #"{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1,"reason":"x"}}"#,
     )
 
     await #expect(throws: TimeoutError.self) {
@@ -84,16 +84,18 @@ struct BridgeFailureTests {
     h.sendInitialize(id: 1)
     h.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
     h.send(
-      #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"X","arguments":{}}}"#
+      #"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"X","arguments":{}}}"#,
     )
 
     let envelopes = try await h.collect(count: 3)
     let ids = envelopes.compactMap { env -> Int? in
-      guard case .number(let n)? = env.id else { return nil }
+      guard case let .number(n)? = env.id else { return nil }
       return (n as NSDecimalNumber).intValue
     }
     #expect(Set(ids) == [1, 2, 3])
-    for env in envelopes { try requireError(env) }
+    for env in envelopes {
+      try requireError(env)
+    }
   }
 
   // MARK: - Bridge dies mid-session
@@ -109,7 +111,7 @@ struct BridgeFailureTests {
     h.sendInitialized()
 
     h.send(
-      #"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{}}}"#
+      #"{"jsonrpc":"2.0","id":42,"method":"tools/call","params":{"name":"XcodeGrep","arguments":{}}}"#,
     )
     let envelope = try await h.nextResponse()
     #expect(envelope.id == .number(Decimal(42)))
@@ -127,7 +129,7 @@ struct BridgeFailureTests {
     h.sendInitialized()
 
     h.send(
-      #"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"X","arguments":{}}}"#
+      #"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"X","arguments":{}}}"#,
     )
     _ = try await h.nextResponse()
 
@@ -140,12 +142,12 @@ struct BridgeFailureTests {
   // MARK: - Helpers
 
   private func requireError(_ envelope: RPCEnvelope) throws {
-    guard case .object(let err)? = envelope.rest["error"] else {
+    guard case let .object(err)? = envelope.rest["error"] else {
       Issue.record("expected error envelope, got \(envelope.rest)")
       return
     }
     #expect(err["code"] != nil)
-    guard case .string(let message)? = err["message"] else {
+    guard case let .string(message)? = err["message"] else {
       Issue.record("expected string error message, got \(String(describing: err["message"]))")
       return
     }

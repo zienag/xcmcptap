@@ -1,5 +1,5 @@
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 let serviceName = "alfred.xcmcptap.test-echo"
 
@@ -8,7 +8,7 @@ let listener = try XPCListener(service: serviceName) { request in
     incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
       MCPLine("echo:" + message.content)
     },
-    cancellationHandler: nil
+    cancellationHandler: nil,
   )
   return decision
 }

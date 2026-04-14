@@ -5,7 +5,7 @@ import Testing
 import XcodeMCPTapUI
 
 @MainActor
-@Suite(.snapshots(record: .missing))
+@Suite
 struct ConnectionsViewSnapshotTests {
   static let size = CGSize(width: 640, height: 280)
 
@@ -13,8 +13,8 @@ struct ConnectionsViewSnapshotTests {
   func active() {
     let controller = NSHostingController(
       rootView: ConnectionsView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
-      )
+        store: Store(initialState: .previewRunning()) { AppFeature() },
+      ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -25,7 +25,7 @@ struct ConnectionsViewSnapshotTests {
     var state = AppFeature.State.previewIdle()
     state.connections = []
     let controller = NSHostingController(
-      rootView: ConnectionsView(store: Store(initialState: state) { AppFeature() })
+      rootView: ConnectionsView(store: Store(initialState: state) { AppFeature() }),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -35,9 +35,9 @@ struct ConnectionsViewSnapshotTests {
   func activeRTL() {
     let controller = NSHostingController(
       rootView: ConnectionsView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
+        store: Store(initialState: .previewRunning()) { AppFeature() },
       )
-      .environment(\.layoutDirection, .rightToLeft)
+      .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))

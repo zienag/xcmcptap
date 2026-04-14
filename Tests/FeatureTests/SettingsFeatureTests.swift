@@ -80,7 +80,7 @@ struct SettingsFeatureTests {
   @Test
   func uninstallCancelledHidesConfirm() async {
     let store = TestStore(
-      initialState: SettingsFeature.State(showingUninstallConfirm: true)
+      initialState: SettingsFeature.State(showingUninstallConfirm: true),
     ) {
       SettingsFeature()
     }

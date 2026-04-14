@@ -1,6 +1,6 @@
 import Dispatch
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 public enum ClientMain {
   public static func run() {
@@ -19,7 +19,7 @@ public enum ClientMain {
         },
         cancellationHandler: { _ in
           exit(0)
-        }
+        },
       )
     } catch {
       fputs("Failed to connect to XPC service: \(error)\n", stderr)

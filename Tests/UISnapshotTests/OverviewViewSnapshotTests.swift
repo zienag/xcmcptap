@@ -5,16 +5,16 @@ import Testing
 import XcodeMCPTapUI
 
 @MainActor
-@Suite(.snapshots(record: .missing))
+@Suite
 struct OverviewViewSnapshotTests {
-  static let size = CGSize(width: 640, height: 200)
+  static let size = CGSize(width: 640, height: 260)
 
   @Test
   func notInstalled() {
     let controller = NSHostingController(
       rootView: OverviewView(
-        store: Store(initialState: .previewNotInstalled()) { AppFeature() }
-      )
+        store: Store(initialState: .previewNotInstalled()) { AppFeature() },
+      ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -24,8 +24,8 @@ struct OverviewViewSnapshotTests {
   func running() {
     let controller = NSHostingController(
       rootView: OverviewView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
-      )
+        store: Store(initialState: .previewRunning()) { AppFeature() },
+      ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -35,9 +35,43 @@ struct OverviewViewSnapshotTests {
   func runningRTL() {
     let controller = NSHostingController(
       rootView: OverviewView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
+        store: Store(initialState: .previewRunning()) { AppFeature() },
       )
-      .environment(\.layoutDirection, .rightToLeft)
+      .environment(\.layoutDirection, .rightToLeft),
+    )
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, as: .image(size: Self.size))
+  }
+
+  @Test
+  func bridgeBooting() {
+    let controller = NSHostingController(
+      rootView: OverviewView(
+        store: Store(initialState: .previewBridgeBooting()) { AppFeature() },
+      ),
+    )
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, as: .image(size: Self.size))
+  }
+
+  @Test
+  func bridgeFailed() {
+    let controller = NSHostingController(
+      rootView: OverviewView(
+        store: Store(initialState: .previewBridgeFailed()) { AppFeature() },
+      ),
+    )
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, as: .image(size: Self.size))
+  }
+
+  @Test
+  func bridgeFailedRTL() {
+    let controller = NSHostingController(
+      rootView: OverviewView(
+        store: Store(initialState: .previewBridgeFailed()) { AppFeature() },
+      )
+      .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))

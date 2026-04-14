@@ -48,10 +48,10 @@ public struct SettingsFeature {
       case .binding:
         return .none
 
-      case .copyTapped(let id, let command):
+      case let .copyTapped(id, command):
         state.copiedIntegrationID = id
-        let clock = self.clock
-        let pasteboard = self.pasteboard
+        let clock = clock
+        let pasteboard = pasteboard
         return .run { send in
           pasteboard.copy(command)
           try await clock.sleep(for: .seconds(1.2))
@@ -59,7 +59,7 @@ public struct SettingsFeature {
         }
         .cancellable(id: CancelID.copyReset, cancelInFlight: true)
 
-      case .copyResetElapsed(let id):
+      case let .copyResetElapsed(id):
         if state.copiedIntegrationID == id {
           state.copiedIntegrationID = nil
         }

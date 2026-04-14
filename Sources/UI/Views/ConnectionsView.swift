@@ -14,7 +14,7 @@ public struct ConnectionsView: View {
       if store.connections.isEmpty {
         ContentUnavailableView(
           "No active connections",
-          systemImage: "personalhotspot.slash"
+          systemImage: "personalhotspot.slash",
         )
       } else {
         ScrollView {
@@ -62,7 +62,7 @@ private struct ConnectionRow: View {
         .frame(width: IconSize.listBadge, height: IconSize.listBadge)
         .background(
           (activityIsRecent ? Color.green : Color.secondary).opacity(SurfaceOpacity.iconTint),
-          in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+          in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous),
         )
 
       Text("PID \(connection.bridgePID)")
@@ -100,15 +100,15 @@ private struct ConnectionRow: View {
 }
 
 #if DEBUG
-#Preview("Active") {
-  ConnectionsView(store: Store(initialState: .previewRunning()) { AppFeature() })
-    .frame(width: 640, height: 300)
-}
+  #Preview("Active") {
+    ConnectionsView(store: Store(initialState: .previewRunning()) { AppFeature() })
+      .frame(width: 640, height: 300)
+  }
 
-#Preview("Empty") {
-  var state = AppFeature.State.previewIdle()
-  state.connections = []
-  return ConnectionsView(store: Store(initialState: state) { AppFeature() })
-    .frame(width: 640, height: 300)
-}
+  #Preview("Empty") {
+    var state = AppFeature.State.previewIdle()
+    state.connections = []
+    return ConnectionsView(store: Store(initialState: state) { AppFeature() })
+      .frame(width: 640, height: 300)
+  }
 #endif

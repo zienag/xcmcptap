@@ -16,7 +16,7 @@ public struct ContentView: View {
         .navigationSplitViewColumnWidth(
           min: SidebarWidth.primaryMin,
           ideal: SidebarWidth.primaryIdeal,
-          max: SidebarWidth.primaryMax
+          max: SidebarWidth.primaryMax,
         )
     } detail: {
       detail
@@ -42,30 +42,10 @@ public struct ContentView: View {
   }
 
   private var sidebarFooter: some View {
-    HStack(spacing: Spacing.s) {
-      StatusDot(running: store.isServiceRunning)
-      VStack(alignment: .leading, spacing: Spacing.hairline) {
-        Text(store.isServiceRunning ? "Service running" : "Service stopped")
-          .font(.caption.weight(.medium))
-        if store.isServiceRunning, let uptime = store.uptimeText {
-          Text("Up \(uptime)")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-        } else if !store.isInstalled {
-          Text("Not installed")
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-        }
-      }
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, Spacing.l)
-    .padding(.vertical, Spacing.s)
-    .background(.bar)
-    .overlay(alignment: .top) {
-      Divider()
-    }
+    SidebarFooter(
+      isServiceRunning: store.isServiceRunning,
+      isInstalled: store.isInstalled,
+    )
   }
 
   private func badge(for item: SidebarItem) -> Int {
@@ -119,6 +99,69 @@ public enum SidebarItem: String, Hashable, CaseIterable, Identifiable, Sendable 
   }
 }
 
+/// Pinned strip along the bottom of the sidebar showing a single
+/// service-state line. Kept deliberately minimal — anything richer
+/// belongs in the Overview pane, not in every sidebar.
+public struct SidebarFooter: View {
+  public var isServiceRunning: Bool
+  public var isInstalled: Bool
+
+  public init(isServiceRunning: Bool, isInstalled: Bool) {
+    self.isServiceRunning = isServiceRunning
+    self.isInstalled = isInstalled
+  }
+
+  public var body: some View {
+    HStack(spacing: Spacing.s) {
+      StatusDot(running: isServiceRunning)
+      Text(text)
+        .font(.caption.weight(.medium))
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
+      Spacer(minLength: 0)
+    }
+    .padding(.horizontal, Spacing.l)
+    .padding(.vertical, Spacing.s)
+    .background(.bar)
+    .overlay(alignment: .top) {
+      Divider()
+    }
+  }
+
+  private var text: String {
+    if isServiceRunning { return "Service running" }
+    if isInstalled { return "Service stopped" }
+    return "Not installed"
+  }
+}
+
+/// Compact tri-state dot for the mcpbridge subprocess:
+/// yellow = `.booting`, green = `.ready`, red = `.failed`.
+/// No pulse — used both inside cards and in the sidebar footer where the
+/// service-level `StatusDot` already carries the animation.
+public struct BridgeStatusDot: View {
+  public var status: BridgeStatus
+
+  public init(status: BridgeStatus) {
+    self.status = status
+  }
+
+  public var body: some View {
+    Circle()
+      .fill(color)
+      .frame(width: IconSize.miniStatusDotInner, height: IconSize.miniStatusDotInner)
+      .shadow(color: color.opacity(SurfaceOpacity.shadow), radius: 2)
+  }
+
+  private var color: Color {
+    switch status {
+    case .booting: Color.yellow
+    case .ready: Color.green
+    case .failed: Color.red
+    }
+  }
+}
+
 public struct StatusDot: View {
   public var running: Bool
   @State private var pulse = false
@@ -141,7 +184,7 @@ public struct StatusDot: View {
         .frame(width: IconSize.statusDotInner, height: IconSize.statusDotInner)
         .shadow(
           color: (running ? Color.green : Color.red).opacity(SurfaceOpacity.shadow),
-          radius: 3
+          radius: 3,
         )
     }
     .frame(width: IconSize.statusDotFrame, height: IconSize.statusDotFrame)
@@ -226,18 +269,18 @@ public func formatUptime(interval: TimeInterval) -> String {
 }
 
 #if DEBUG
-#Preview("Running") {
-  ContentView(store: Store(initialState: .previewRunning()) { AppFeature() })
-    .frame(width: 960, height: 640)
-}
+  #Preview("Running") {
+    ContentView(store: Store(initialState: .previewRunning()) { AppFeature() })
+      .frame(width: 960, height: 640)
+  }
 
-#Preview("Idle") {
-  ContentView(store: Store(initialState: .previewIdle()) { AppFeature() })
-    .frame(width: 960, height: 640)
-}
+  #Preview("Idle") {
+    ContentView(store: Store(initialState: .previewIdle()) { AppFeature() })
+      .frame(width: 960, height: 640)
+  }
 
-#Preview("Not installed") {
-  ContentView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
-    .frame(width: 960, height: 640)
-}
+  #Preview("Not installed") {
+    ContentView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
+      .frame(width: 960, height: 640)
+  }
 #endif

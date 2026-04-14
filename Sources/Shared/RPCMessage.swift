@@ -1,6 +1,6 @@
+import struct Foundation.Data
 import class Foundation.JSONDecoder
 import class Foundation.JSONEncoder
-import struct Foundation.Data
 
 public enum MCPProtocol {
   /// MCP protocol version this proxy implements. Must match what the
@@ -10,7 +10,7 @@ public enum MCPProtocol {
   /// Standard MCP `initialize` params with empty capabilities.
   public static func initializeParams(
     clientName: String,
-    clientVersion: String
+    clientVersion: String,
   ) -> JSONValue {
     .object([
       "protocolVersion": .string(version),
@@ -59,13 +59,13 @@ public struct RPCEnvelope: Codable, Sendable, Equatable {
     var all = try [String: JSONValue](from: decoder)
     id = all.removeValue(forKey: "id")
     if let methodValue = all.removeValue(forKey: "method") {
-      guard case .string(let m) = methodValue else {
+      guard case let .string(m) = methodValue else {
         throw DecodingError.typeMismatch(
           String.self,
           .init(
             codingPath: decoder.codingPath,
-            debugDescription: "\"method\" must be a string"
-          )
+            debugDescription: "\"method\" must be a string",
+          ),
         )
       }
       method = m
@@ -81,7 +81,7 @@ public struct RPCEnvelope: Codable, Sendable, Equatable {
   }
 
   /// Decodes the envelope's `result` field as the given `Decodable` type.
-  public func decodeResult<T: Decodable>(as type: T.Type) throws -> T {
+  public func decodeResult<T: Decodable>(as _: T.Type) throws -> T {
     guard let raw = rest["result"] else {
       throw RPCDecodingError.missingResult
     }

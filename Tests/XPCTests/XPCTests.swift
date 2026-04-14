@@ -1,7 +1,7 @@
 import Foundation
 import Testing
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 @Suite(.serialized)
 struct XPCIntegrationTests {
@@ -63,7 +63,7 @@ struct XPCIntegrationTests {
     try XPCSession(
       machService: Self.serviceName,
       incomingMessageHandler: { (_: MCPLine) -> (any Encodable)? in nil },
-      cancellationHandler: nil
+      cancellationHandler: nil,
     )
   }
 
@@ -85,35 +85,35 @@ struct XPCIntegrationTests {
 
     guard FileManager.default.fileExists(atPath: echoServerPath) else {
       fatalError(
-        "xpc-test-echo-server not found at \(echoServerPath). Run 'swift build' first."
+        "xpc-test-echo-server not found at \(echoServerPath). Run 'swift build' first.",
       )
     }
 
     let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(serviceName).plist"
     let plist = """
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
-      "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>Label</key>
+      <string>\(serviceName)</string>
+      <key>ProgramArguments</key>
+      <array>
+        <string>\(echoServerPath)</string>
+      </array>
+      <key>MachServices</key>
       <dict>
-        <key>Label</key>
-        <string>\(serviceName)</string>
-        <key>ProgramArguments</key>
-        <array>
-          <string>\(echoServerPath)</string>
-        </array>
-        <key>MachServices</key>
-        <dict>
-          <key>\(serviceName)</key>
-          <true/>
-        </dict>
-        <key>StandardOutPath</key>
-        <string>\(logPath)</string>
-        <key>StandardErrorPath</key>
-        <string>\(logPath)</string>
+        <key>\(serviceName)</key>
+        <true/>
       </dict>
-      </plist>
-      """
+      <key>StandardOutPath</key>
+      <string>\(logPath)</string>
+      <key>StandardErrorPath</key>
+      <string>\(logPath)</string>
+    </dict>
+    </plist>
+    """
 
     try plist.write(toFile: plistPath, atomically: true, encoding: .utf8)
 

@@ -5,7 +5,7 @@ import Testing
 import XcodeMCPTapUI
 
 @MainActor
-@Suite(.snapshots(record: .missing))
+@Suite
 struct SettingsViewSnapshotTests {
   static let size = CGSize(width: 720, height: 560)
 
@@ -13,8 +13,8 @@ struct SettingsViewSnapshotTests {
   func installed() {
     let controller = NSHostingController(
       rootView: SettingsView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
-      )
+        store: Store(initialState: .previewRunning()) { AppFeature() },
+      ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -24,8 +24,8 @@ struct SettingsViewSnapshotTests {
   func notInstalled() {
     let controller = NSHostingController(
       rootView: SettingsView(
-        store: Store(initialState: .previewNotInstalled()) { AppFeature() }
-      )
+        store: Store(initialState: .previewNotInstalled()) { AppFeature() },
+      ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -36,7 +36,7 @@ struct SettingsViewSnapshotTests {
     var state = AppFeature.State.previewRunning()
     state.settings.copiedIntegrationID = "claude"
     let controller = NSHostingController(
-      rootView: SettingsView(store: Store(initialState: state) { AppFeature() })
+      rootView: SettingsView(store: Store(initialState: state) { AppFeature() }),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -46,9 +46,9 @@ struct SettingsViewSnapshotTests {
   func installedRTL() {
     let controller = NSHostingController(
       rootView: SettingsView(
-        store: Store(initialState: .previewRunning()) { AppFeature() }
+        store: Store(initialState: .previewRunning()) { AppFeature() },
       )
-      .environment(\.layoutDirection, .rightToLeft)
+      .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -59,7 +59,7 @@ struct SettingsViewSnapshotTests {
     var state = AppFeature.State.previewRunning()
     state.isOnSystemPath = true
     let controller = NSHostingController(
-      rootView: SettingsView(store: Store(initialState: state) { AppFeature() })
+      rootView: SettingsView(store: Store(initialState: state) { AppFeature() }),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
@@ -71,7 +71,7 @@ struct SettingsViewSnapshotTests {
     state.isOnSystemPath = true
     let controller = NSHostingController(
       rootView: SettingsView(store: Store(initialState: state) { AppFeature() })
-        .environment(\.layoutDirection, .rightToLeft)
+        .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))

@@ -19,6 +19,7 @@ public enum IconSize {
   public static let statusDotInner: CGFloat = 8
   public static let statusDotOuter: CGFloat = 10
   public static let statusDotFrame: CGFloat = 14
+  public static let miniStatusDotInner: CGFloat = 6
   public static let listBadge: CGFloat = 22
   public static let tile: CGFloat = 26
 }

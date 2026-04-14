@@ -13,6 +13,7 @@ public final class ConnectionRegistry: Sendable {
     var connections: [UUID: ConnectionInfo] = [:]
     var totalServed = 0
     var tools: [ToolInfo] = []
+    var bridge: BridgeStatus = .booting
     var onEvent: (@Sendable (StatusEvent) -> Void)?
   }
 
@@ -27,7 +28,7 @@ public final class ConnectionRegistry: Sendable {
       connectedAt: Date(),
       messagesRouted: 0,
       lastActivityAt: Date(),
-      bridgePID: bridgePID
+      bridgePID: bridgePID,
     )
 
     let handler = state.withLock {
@@ -36,7 +37,7 @@ public final class ConnectionRegistry: Sendable {
       return $0.onEvent
     }
 
-    handler?(StatusEvent(kind: .connectionOpened, connection: info))
+    handler?(.connectionOpened(info))
     return info
   }
 
@@ -45,7 +46,18 @@ public final class ConnectionRegistry: Sendable {
       ($0.connections.removeValue(forKey: id), $0.onEvent)
     }
     if let info {
-      handler?(StatusEvent(kind: .connectionClosed, connection: info))
+      handler?(.connectionClosed(info))
+    }
+  }
+
+  public func updateBridge(_ status: BridgeStatus) {
+    let (changed, handler) = state.withLock { s -> (Bool, (@Sendable (StatusEvent) -> Void)?) in
+      guard s.bridge != status else { return (false, nil) }
+      s.bridge = status
+      return (true, s.onEvent)
+    }
+    if changed {
+      handler?(.bridgeStateChanged(status))
     }
   }
 
@@ -67,9 +79,10 @@ public final class ConnectionRegistry: Sendable {
         health: ServiceHealth(
           startedAt: startedAt,
           totalConnectionsServed: s.totalServed,
-          activeConnectionCount: s.connections.count
+          activeConnectionCount: s.connections.count,
         ),
-        tools: s.tools
+        tools: s.tools,
+        bridge: s.bridge,
       )
     }
   }

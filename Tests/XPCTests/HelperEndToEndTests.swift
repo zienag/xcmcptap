@@ -1,7 +1,7 @@
 import Foundation
 import Testing
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 @Suite(.serialized)
 struct HelperEndToEndTests {
@@ -21,7 +21,7 @@ struct HelperEndToEndTests {
     let source = try makeSource()
 
     let installResponse: HelperResponse = try session.sendSync(
-      HelperRequest.installSymlink(sourcePath: source)
+      HelperRequest.installSymlink(sourcePath: source),
     )
     #expect(installResponse == .success)
 
@@ -64,7 +64,7 @@ struct HelperEndToEndTests {
     try XPCSession(
       machService: Self.serviceName,
       incomingMessageHandler: { (_: HelperResponse) -> (any Encodable)? in nil },
-      cancellationHandler: nil
+      cancellationHandler: nil,
     )
   }
 
@@ -97,38 +97,38 @@ struct HelperEndToEndTests {
 
     let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(serviceName).plist"
     let plist = """
-      <?xml version="1.0" encoding="UTF-8"?>
-      <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
-      "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-      <plist version="1.0">
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+      <key>Label</key>
+      <string>\(serviceName)</string>
+      <key>ProgramArguments</key>
+      <array>
+        <string>\(helperPath)</string>
+      </array>
+      <key>EnvironmentVariables</key>
       <dict>
-        <key>Label</key>
+        <key>HELPER_MACH_SERVICE</key>
         <string>\(serviceName)</string>
-        <key>ProgramArguments</key>
-        <array>
-          <string>\(helperPath)</string>
-        </array>
-        <key>EnvironmentVariables</key>
-        <dict>
-          <key>HELPER_MACH_SERVICE</key>
-          <string>\(serviceName)</string>
-          <key>HELPER_DESTINATION</key>
-          <string>\(destination)</string>
-          <key>HELPER_ALLOW_ANY_PEER</key>
-          <string>1</string>
-        </dict>
-        <key>MachServices</key>
-        <dict>
-          <key>\(serviceName)</key>
-          <true/>
-        </dict>
-        <key>StandardOutPath</key>
-        <string>\(logPath)</string>
-        <key>StandardErrorPath</key>
-        <string>\(logPath)</string>
+        <key>HELPER_DESTINATION</key>
+        <string>\(destination)</string>
+        <key>HELPER_ALLOW_ANY_PEER</key>
+        <string>1</string>
       </dict>
-      </plist>
-      """
+      <key>MachServices</key>
+      <dict>
+        <key>\(serviceName)</key>
+        <true/>
+      </dict>
+      <key>StandardOutPath</key>
+      <string>\(logPath)</string>
+      <key>StandardErrorPath</key>
+      <string>\(logPath)</string>
+    </dict>
+    </plist>
+    """
 
     try plist.write(toFile: plistPath, atomically: true, encoding: .utf8)
 

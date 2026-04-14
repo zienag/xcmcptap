@@ -24,7 +24,7 @@ public struct SettingsView: View {
     .confirmationDialog(
       "Uninstall the service?",
       isPresented: $store.settings.showingUninstallConfirm,
-      titleVisibility: .visible
+      titleVisibility: .visible,
     ) {
       Button("Uninstall", role: .destructive) {
         store.send(.settings(.uninstallConfirmed))
@@ -75,7 +75,7 @@ public struct SettingsView: View {
       } label: {
         Label(
           copied ? "Copied" : "Copy",
-          systemImage: copied ? "checkmark" : "doc.on.doc"
+          systemImage: copied ? "checkmark" : "doc.on.doc",
         )
         .fixedSize()
       }
@@ -178,13 +178,13 @@ private struct SectionLabel: View {
 }
 
 #if DEBUG
-#Preview("Installed") {
-  SettingsView(store: Store(initialState: .previewRunning()) { AppFeature() })
-    .frame(width: 640, height: 520)
-}
+  #Preview("Installed") {
+    SettingsView(store: Store(initialState: .previewRunning()) { AppFeature() })
+      .frame(width: 640, height: 520)
+  }
 
-#Preview("Not installed") {
-  SettingsView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
-    .frame(width: 640, height: 520)
-}
+  #Preview("Not installed") {
+    SettingsView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
+      .frame(width: 640, height: 520)
+  }
 #endif

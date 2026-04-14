@@ -4,7 +4,6 @@ import XcodeMCPTapShared
 
 @Suite(.serialized)
 struct MCPBridgeHandshakeTests {
-
   @Test func handshakeWithMCPBridge() async throws {
     let connection = MCPConnection(exec: MockBridge.path())
     await connection.start()
@@ -12,7 +11,7 @@ struct MCPBridgeHandshakeTests {
 
     let response = try await connection.request(
       method: "initialize",
-      params: MCPProtocol.initializeParams(clientName: "test", clientVersion: "1.0")
+      params: MCPProtocol.initializeParams(clientName: "test", clientVersion: "1.0"),
     )
     let result = try response.decodeResult(as: InitializeResult.self)
     #expect(result.serverInfo.name == "xcode-tools")
@@ -25,13 +24,13 @@ struct MCPBridgeHandshakeTests {
 
     _ = try await connection.request(
       method: "initialize",
-      params: MCPProtocol.initializeParams(clientName: "test", clientVersion: "1.0")
+      params: MCPProtocol.initializeParams(clientName: "test", clientVersion: "1.0"),
     )
     try await connection.notify(method: "notifications/initialized")
 
     let response = try await connection.request(
       method: "tools/list",
-      params: .object([:])
+      params: .object([:]),
     )
     let result = try response.decodeResult(as: ListToolsResult.self)
     #expect(!result.tools.isEmpty)

@@ -1,15 +1,20 @@
+import struct Foundation.Data
+import struct Foundation.Decimal
 import class Foundation.JSONDecoder
 import class Foundation.JSONEncoder
 import class Foundation.NSDecimalNumber
-import struct Foundation.Data
-import struct Foundation.Decimal
 import struct Foundation.UUID
 import Synchronization
 import XcodeMCPTapShared
 
 public final class MCPRouter: Sendable {
+  public typealias Sleeper = @Sendable (Duration) async -> Void
+
   private let makeConnection: @Sendable () -> MCPConnection
   private let state = Mutex(State())
+  private let healthPingInterval: Duration
+  private let healthPingTimeout: Duration
+  private let sleeper: Sleeper
 
   private struct ClientSlot: Sendable {
     var send: @Sendable (String) -> Void
@@ -59,6 +64,7 @@ public final class MCPRouter: Sendable {
     var progressMap: [String: Mapping] = [:]
     var nextBridgeID: Int = 1
     var onToolsDiscovered: (@Sendable ([ToolInfo]) -> Void)?
+    var onBridgeStateChanged: (@Sendable (BridgeStatus) -> Void)?
   }
 
   /// Computed synchronously under the state mutex by `prepareOutgoing`.
@@ -77,13 +83,38 @@ public final class MCPRouter: Sendable {
     set { state.withLock { $0.onToolsDiscovered = newValue } }
   }
 
+  /// Fired on every BridgeState transition (booting → ready, booting/ready
+  /// → failed, and failed → booting during auto-respawn). Used by the
+  /// status endpoint to broadcast state to connected UI clients. Always
+  /// called outside the state mutex.
+  public var onBridgeStateChanged: (@Sendable (BridgeStatus) -> Void)? {
+    get { state.withLock { $0.onBridgeStateChanged } }
+    set { state.withLock { $0.onBridgeStateChanged = newValue } }
+  }
+
   /// Primary initializer. Takes a factory so the router can spawn a
   /// fresh subprocess transport on respawn — a single `MCPConnection`
   /// value is one-shot (its subprocess runs once). Production: wrap
   /// `MCPConnection(exec: "/usr/bin/xcrun", "mcpbridge")`. Tests: vary
   /// per-attempt behavior by branching inside the closure.
-  public init(makeConnection: @Sendable @escaping () -> MCPConnection) {
+  ///
+  /// `healthPingInterval` / `healthPingTimeout` drive the proactive
+  /// hang detector: every `interval`, while the bridge is `.ready`, we
+  /// send a `tools/list` and flip to `.failed` if the response doesn't
+  /// come back within `timeout`. Defaults are tuned for production;
+  /// tests override to millisecond scale.
+  public init(
+    makeConnection: @Sendable @escaping () -> MCPConnection,
+    healthPingInterval: Duration = .seconds(30),
+    healthPingTimeout: Duration = .seconds(10),
+    sleeper: @escaping Sleeper = { duration in
+      try? await Task.sleep(for: duration)
+    },
+  ) {
     self.makeConnection = makeConnection
+    self.healthPingInterval = healthPingInterval
+    self.healthPingTimeout = healthPingTimeout
+    self.sleeper = sleeper
   }
 
   /// Backward-compatible initializer for tests that own a single
@@ -97,13 +128,14 @@ public final class MCPRouter: Sendable {
 
   public func start() {
     Task { await self.boot() }
+    Task { await self.healthPingLoop() }
   }
 
   /// Register a connected client with its send callback. Use the returned
   /// id (or a UUID you already own) when calling `handleClientMessage`.
   public func registerClient(
     id: UUID = UUID(),
-    send: @escaping @Sendable (String) -> Void
+    send: @escaping @Sendable (String) -> Void,
   ) -> UUID {
     state.withLock { s in
       s.clients[id] = ClientSlot(send: send)
@@ -121,26 +153,32 @@ public final class MCPRouter: Sendable {
   }
 
   public func handleClientMessage(from clientID: UUID, _ content: String) {
-    let (action, shouldRespawn) = state.withLock { s -> (Action, Bool) in
-      if s.isShutdown { return (.none, false) }
-      switch s.bridge {
-      case .booting:
-        s.pending.append((clientID, content))
-        return (.none, false)
-      case .ready:
-        return (Self.prepareOutgoing(from: clientID, content: content, state: &s), false)
-      case .failed:
-        // Auto-recover: flip to .booting, queue this message, and have
-        // the caller kick off a fresh boot. If the respawn succeeds the
-        // pending message gets flushed normally; if it fails again the
-        // message gets an error reply. Either way the client is never
-        // left hanging.
-        s.bridge = .booting
-        s.pending.append((clientID, content))
-        return (.none, true)
+    let (action, shouldRespawn, notify) = state
+      .withLock { s -> (Action, Bool, (@Sendable (BridgeStatus) -> Void)?) in
+        if s.isShutdown { return (.none, false, nil) }
+        switch s.bridge {
+        case .booting:
+          s.pending.append((clientID, content))
+          return (.none, false, nil)
+        case .ready:
+          return (
+            Self.prepareOutgoing(from: clientID, content: content, state: &s),
+            false,
+            nil,
+          )
+        case .failed:
+          // Auto-recover: flip to .booting, queue this message, and have
+          // the caller kick off a fresh boot. If the respawn succeeds the
+          // pending message gets flushed normally; if it fails again the
+          // message gets an error reply. Either way the client is never
+          // left hanging.
+          s.bridge = .booting
+          s.pending.append((clientID, content))
+          return (.none, true, s.onBridgeStateChanged)
+        }
       }
-    }
     perform(action)
+    notify?(.booting)
     if shouldRespawn {
       Task { await self.boot() }
     }
@@ -159,7 +197,82 @@ public final class MCPRouter: Sendable {
     await oldConnection?.terminate()
   }
 
+  /// External trigger for forcing the bridge into `.failed` — used when
+  /// the supervisor (NSWorkspace observer watching Xcode, periodic
+  /// health-ping) decides mcpbridge is no longer usable even though the
+  /// subprocess is still alive. Terminates the current subprocess so
+  /// it can't continue to accept stale input, fires `onBridgeStateChanged`
+  /// with the provided reason, and lets the next client message drive
+  /// a respawn via the existing auto-recovery path.
+  public func markBridgeUnavailable(reason: String) async {
+    let connection = state.withLock { $0.currentConnection }
+    if let connection {
+      markBridgeFailed(reason: reason, failingConnection: connection)
+    } else {
+      let notify = state.withLock { s -> (@Sendable (BridgeStatus) -> Void)? in
+        switch s.bridge {
+        case .failed: return nil
+        case .booting, .ready:
+          s.bridge = .failed(reason: reason)
+          return s.onBridgeStateChanged
+        }
+      }
+      notify?(.failed(reason: reason))
+    }
+  }
+
   // MARK: - Private
+
+  /// Loops for the lifetime of the router. Every `healthPingInterval`,
+  /// while the bridge is `.ready`, sends a lightweight `tools/list`
+  /// and races it against `healthPingTimeout`. A timeout flips the
+  /// bridge to `.failed` — catches the "Xcode quit but mcpbridge is
+  /// still alive and hanging" mode that otherwise only surfaces on
+  /// the next client tool call. Silent on `.booting` / `.failed`.
+  private func healthPingLoop() async {
+    while !Task.isCancelled {
+      await sleeper(healthPingInterval)
+      let (connection, isShutdown) = state.withLock { s -> (MCPConnection?, Bool) in
+        guard case .ready = s.bridge else { return (nil, s.isShutdown) }
+        return (s.currentConnection, s.isShutdown)
+      }
+      if isShutdown { return }
+      guard let connection else { continue }
+      let ok = await raceRequestAgainstTimeout(connection: connection)
+      if !ok {
+        await markBridgeUnavailable(
+          reason: "mcpbridge not responding to health ping",
+        )
+      }
+    }
+  }
+
+  /// Sends `tools/list` and returns `true` if the response came back
+  /// within `healthPingTimeout`, `false` otherwise. Doesn't use
+  /// `withTaskGroup` + `cancelAll` because `MCPConnection.request`
+  /// awaits a response that will never arrive on a hung bridge and
+  /// doesn't cooperate with task cancellation — the task group would
+  /// deadlock waiting for the hung child. Instead: detach the request,
+  /// sleep the timeout, read a flag. The orphaned task is harmless
+  /// since the caller terminates the subprocess on timeout, which
+  /// unblocks it.
+  private func raceRequestAgainstTimeout(connection: MCPConnection) async -> Bool {
+    let completed = Mutex(false)
+    Task {
+      do {
+        _ = try await connection.request(
+          method: "tools/list",
+          params: .object([:]),
+        )
+        completed.withLock { $0 = true }
+      } catch {
+        // request failed — leave `completed` as false so the caller
+        // flags the ping as a miss and drives recovery.
+      }
+    }
+    await sleeper(healthPingTimeout)
+    return completed.withLock { $0 }
+  }
 
   private func boot() async {
     let connection = makeConnection()
@@ -177,8 +290,8 @@ public final class MCPRouter: Sendable {
         method: "initialize",
         params: MCPProtocol.initializeParams(
           clientName: "XcodeMCPTap",
-          clientVersion: "1.0"
-        )
+          clientVersion: "1.0",
+        ),
       )
       try await connection.notify(method: "notifications/initialized")
 
@@ -186,15 +299,20 @@ public final class MCPRouter: Sendable {
       // between two buffered messages from the same client is preserved
       // — e.g. a cancel following its tools/call sees the just-registered
       // mapping.
-      let actions = state.withLock { s -> [Action] in
-        s.bridge = .ready(cachedInit: initResponse)
-        let flushed = s.pending
-        s.pending = []
-        return flushed.map { entry in
-          Self.prepareOutgoing(from: entry.client, content: entry.content, state: &s)
+      let (actions, notify) = state
+        .withLock { s -> ([Action], (@Sendable (BridgeStatus) -> Void)?) in
+          s.bridge = .ready(cachedInit: initResponse)
+          let flushed = s.pending
+          s.pending = []
+          let acts = flushed.map { entry in
+            Self.prepareOutgoing(from: entry.client, content: entry.content, state: &s)
+          }
+          return (acts, s.onBridgeStateChanged)
         }
+      for action in actions {
+        perform(action)
       }
-      for action in actions { perform(action) }
+      notify?(.ready)
     } catch {
       let reason = await formatBridgeFailure(connection: connection, error: error)
       markBridgeFailed(reason: reason, failingConnection: connection)
@@ -204,13 +322,13 @@ public final class MCPRouter: Sendable {
     Task {
       guard let response = try? await connection.request(
         method: "tools/list",
-        params: .object([:])
+        params: .object([:]),
       ) else { return }
-      guard case .object(let result)? = response.rest["result"],
-            case .array(let tools)? = result["tools"] else { return }
+      guard case let .object(result)? = response.rest["result"],
+            case let .array(tools)? = result["tools"] else { return }
       let infos = tools.compactMap { t -> ToolInfo? in
-        guard case .object(let o) = t, case .string(let name)? = o["name"] else { return nil }
-        let description: String = if case .string(let d)? = o["description"] { d } else { "" }
+        guard case let .object(o) = t, case let .string(name)? = o["name"] else { return nil }
+        let description: String = if case let .string(d)? = o["description"] { d } else { "" }
         return ToolInfo(name: name, description: description)
       }
       let handler = state.withLock { $0.onToolsDiscovered }
@@ -230,7 +348,7 @@ public final class MCPRouter: Sendable {
     if isCurrent {
       let reason = await formatBridgeFailure(
         connection: connection,
-        error: MCPConnectionError.transportClosed
+        error: MCPConnectionError.transportClosed,
       )
       markBridgeFailed(reason: reason, failingConnection: connection)
     }
@@ -251,44 +369,48 @@ public final class MCPRouter: Sendable {
   /// boot-failure and passthrough-closure can race safely. The old
   /// connection is terminated asynchronously so the mutex stays short.
   private func markBridgeFailed(reason: String, failingConnection: MCPConnection) {
-    let (actions, oldConnection) = state.withLock { s -> ([Action], MCPConnection?) in
-      // Only transition if the failing connection is still current —
-      // stale drains from a previous-generation bridge must be ignored.
-      guard s.currentConnection === failingConnection else { return ([], nil) }
-      switch s.bridge {
-      case .failed:
-        return ([], nil)
-      case .booting, .ready:
-        break
-      }
-      s.bridge = .failed(reason: reason)
-      let old = s.currentConnection
-      s.currentConnection = nil
-
-      var out: [Action] = []
-
-      // Fail every in-flight mapped request — the bridge will never
-      // reply to them.
-      for mapping in s.idMap.values {
-        guard let slot = s.clients[mapping.client] else { continue }
-        if let line = Self.encodeError(id: mapping.original, reason: reason) {
-          out.append(.replyToClient(slot.send, line))
+    let (actions, oldConnection, notify) = state
+      .withLock { s -> ([Action], MCPConnection?, (@Sendable (BridgeStatus) -> Void)?) in
+        // Only transition if the failing connection is still current —
+        // stale drains from a previous-generation bridge must be ignored.
+        guard s.currentConnection === failingConnection else { return ([], nil, nil) }
+        switch s.bridge {
+        case .failed:
+          return ([], nil, nil)
+        case .booting, .ready:
+          break
         }
-      }
-      s.idMap.removeAll()
-      s.progressMap.removeAll()
+        s.bridge = .failed(reason: reason)
+        let old = s.currentConnection
+        s.currentConnection = nil
 
-      // Flush anything still in the pending queue back through
-      // `prepareOutgoing`, which now sees state `.failed` and returns
-      // error replies (for requests) or drops (for notifications).
-      let queued = s.pending
-      s.pending = []
-      for entry in queued {
-        out.append(Self.prepareOutgoing(from: entry.client, content: entry.content, state: &s))
+        var out: [Action] = []
+
+        // Fail every in-flight mapped request — the bridge will never
+        // reply to them.
+        for mapping in s.idMap.values {
+          guard let slot = s.clients[mapping.client] else { continue }
+          if let line = Self.encodeError(id: mapping.original, reason: reason) {
+            out.append(.replyToClient(slot.send, line))
+          }
+        }
+        s.idMap.removeAll()
+        s.progressMap.removeAll()
+
+        // Flush anything still in the pending queue back through
+        // `prepareOutgoing`, which now sees state `.failed` and returns
+        // error replies (for requests) or drops (for notifications).
+        let queued = s.pending
+        s.pending = []
+        for entry in queued {
+          out.append(Self.prepareOutgoing(from: entry.client, content: entry.content, state: &s))
+        }
+        return (out, old, s.onBridgeStateChanged)
       }
-      return (out, old)
+    for action in actions {
+      perform(action)
     }
-    for action in actions { perform(action) }
+    notify?(.failed(reason: reason))
     if let old = oldConnection {
       Task { await old.terminate() }
     }
@@ -296,7 +418,7 @@ public final class MCPRouter: Sendable {
 
   private func deliverFromBridge(_ raw: String) {
     guard var envelope = try? JSONDecoder().decode(
-      RPCEnvelope.self, from: Data(raw.utf8)
+      RPCEnvelope.self, from: Data(raw.utf8),
     ) else { return }
 
     // Response to a client request: look up bridge id → origin.
@@ -309,7 +431,8 @@ public final class MCPRouter: Sendable {
       if let resolved {
         envelope.id = resolved.original
         if let data = try? JSONEncoder().encode(envelope),
-           let line = String(data: data, encoding: .utf8) {
+           let line = String(data: data, encoding: .utf8)
+        {
           resolved.send(line)
         }
       }
@@ -318,9 +441,10 @@ public final class MCPRouter: Sendable {
 
     // Progress notification: tied to an originally-allocated bridge token.
     if envelope.method == "notifications/progress",
-       case .object(var params)? = envelope.rest["params"],
+       case var .object(params)? = envelope.rest["params"],
        let token = params["progressToken"],
-       let key = Self.idKey(token) {
+       let key = Self.idKey(token)
+    {
       let resolved = state.withLock { s -> (send: @Sendable (String) -> Void, original: JSONValue)? in
         guard let mapping = s.progressMap[key] else { return nil }
         guard let slot = s.clients[mapping.client] else { return nil }
@@ -330,7 +454,8 @@ public final class MCPRouter: Sendable {
         params["progressToken"] = resolved.original
         envelope.rest["params"] = .object(params)
         if let data = try? JSONEncoder().encode(envelope),
-           let line = String(data: data, encoding: .utf8) {
+           let line = String(data: data, encoding: .utf8)
+        {
           resolved.send(line)
         }
       }
@@ -340,16 +465,18 @@ public final class MCPRouter: Sendable {
     // Uncorrelated server-initiated notifications (tools/list_changed, etc.)
     // are broadcast to every connected client.
     let recipients = state.withLock { s in s.clients.values.map(\.send) }
-    for send in recipients { send(raw) }
+    for send in recipients {
+      send(raw)
+    }
   }
 
   private func perform(_ action: Action) {
     switch action {
     case .none:
       return
-    case .replyToClient(let send, let line):
+    case let .replyToClient(send, line):
       send(line)
-    case .forwardToBridge(let data):
+    case let .forwardToBridge(data):
       // Snapshot the current connection at perform-time. If state has
       // been torn down between prepare and perform, drop — an error
       // for a mapped id already went out via `markBridgeFailed`.
@@ -372,10 +499,10 @@ public final class MCPRouter: Sendable {
   private static func prepareOutgoing(
     from clientID: UUID,
     content: String,
-    state s: inout State
+    state s: inout State,
   ) -> Action {
     guard let envelope = try? JSONDecoder().decode(
-      RPCEnvelope.self, from: Data(content.utf8)
+      RPCEnvelope.self, from: Data(content.utf8),
     ) else {
       // Unparseable. Forward only if the bridge is alive — a dead bridge
       // has no way to produce a meaningful response, so drop rather than
@@ -392,13 +519,13 @@ public final class MCPRouter: Sendable {
       switch s.bridge {
       case .booting:
         return .none // unreachable — handleClientMessage queues instead
-      case .ready(let cached):
+      case let .ready(cached):
         var response = cached
         response.id = envelope.id
         guard let data = try? JSONEncoder().encode(response),
               let line = String(data: data, encoding: .utf8) else { return .none }
         return .replyToClient(slot.send, line)
-      case .failed(let reason):
+      case let .failed(reason):
         guard let id = envelope.id,
               let line = encodeError(id: id, reason: reason) else { return .none }
         return .replyToClient(slot.send, line)
@@ -411,7 +538,7 @@ public final class MCPRouter: Sendable {
       // Cancel against a dead bridge has nothing to target — drop.
       if case .failed = s.bridge { return .none }
       var rewritten = envelope
-      if case .object(var params)? = envelope.rest["params"],
+      if case var .object(params)? = envelope.rest["params"],
          let origRequestId = params["requestId"],
          let origKey = idKey(origRequestId)
       {
@@ -433,7 +560,7 @@ public final class MCPRouter: Sendable {
     // Default path: a request (has id) or any other client notification.
     // Dead bridge → error responses for requests, silent drops for
     // notifications. Live bridge → rewrite id + progressToken, forward.
-    if case .failed(let reason) = s.bridge {
+    if case let .failed(reason) = s.bridge {
       guard let slot = s.clients[clientID], let id = envelope.id else {
         return .none // notification: drop
       }
@@ -449,8 +576,8 @@ public final class MCPRouter: Sendable {
       rewritten.id = .number(Decimal(bridgeId))
     }
 
-    if case .object(var params)? = envelope.rest["params"] {
-      if case .object(var meta)? = params["_meta"],
+    if case var .object(params)? = envelope.rest["params"] {
+      if case var .object(meta)? = params["_meta"],
          let originalToken = meta["progressToken"]
       {
         let bridgeToken = s.nextBridgeID
@@ -478,7 +605,7 @@ public final class MCPRouter: Sendable {
           "code": .number(Decimal(-32603)),
           "message": .string(reason),
         ]),
-      ]
+      ],
     )
     guard let data = try? JSONEncoder().encode(envelope),
           let line = String(data: data, encoding: .utf8) else { return nil }
@@ -490,12 +617,12 @@ public final class MCPRouter: Sendable {
   /// mcpbridge sometimes stringifies progressTokens on the way back.
   private static func idKey(_ value: JSONValue) -> String? {
     switch value {
-    case .number(let n):
-      return String(NSDecimalNumber(decimal: n).int64Value)
-    case .string(let s):
-      return s
+    case let .number(n):
+      String(NSDecimalNumber(decimal: n).int64Value)
+    case let .string(s):
+      s
     default:
-      return nil
+      nil
     }
   }
 }

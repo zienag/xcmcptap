@@ -6,6 +6,7 @@ import XcodeMCPTapShared
 public struct AppFeature {
   @ObservableState
   public struct State: Equatable {
+    public var bridgeStatus: BridgeStatus = .booting
     public var clientPath: String = ServiceInstaller.clientLinkPath
     public var connections: [ConnectionInfo] = []
     public var health: ServiceHealth?
@@ -22,6 +23,7 @@ public struct AppFeature {
     public var tools: ToolsFeature.State = .init()
 
     public init(
+      bridgeStatus: BridgeStatus = .booting,
       connections: [ConnectionInfo] = [],
       health: ServiceHealth? = nil,
       isInstalled: Bool = false,
@@ -31,8 +33,9 @@ public struct AppFeature {
       requiresApproval: Bool = false,
       selection: SidebarItem = .overview,
       settings: SettingsFeature.State = .init(),
-      tools: ToolsFeature.State = .init()
+      tools: ToolsFeature.State = .init(),
     ) {
+      self.bridgeStatus = bridgeStatus
       self.connections = connections
       self.health = health
       self.isInstalled = isInstalled
@@ -57,6 +60,29 @@ public struct AppFeature {
 
     public var totalMessagesRouted: Int {
       connections.reduce(0) { $0 + $1.messagesRouted }
+    }
+
+    /// Short label describing the current mcpbridge subprocess state.
+    public var bridgeStatusTitle: String {
+      switch bridgeStatus {
+      case .booting: "Starting mcpbridge"
+      case .ready: "mcpbridge ready"
+      case .failed: "mcpbridge unavailable"
+      }
+    }
+
+    /// Longer human-readable detail for the mcpbridge state. For `.failed`
+    /// this is the captured stderr/transport reason; for `.booting` and
+    /// `.ready` it returns a generic explanation of the state.
+    public var bridgeStatusDetail: String {
+      switch bridgeStatus {
+      case .booting:
+        "Launching /usr/bin/xcrun mcpbridge and waiting for the MCP handshake to complete."
+      case .ready:
+        "Connected to Xcode. Tool calls forwarded through a single shared mcpbridge process."
+      case let .failed(reason):
+        reason
+      }
     }
   }
 
@@ -100,11 +126,11 @@ public struct AppFeature {
       case .binding:
         return .none
 
-      case .clockTick(let date):
+      case let .clockTick(date):
         state.now = date
         return .none
 
-      case .installStatusRefreshed(let isInstalled, let requiresApproval, let isOnSystemPath):
+      case let .installStatusRefreshed(isInstalled, requiresApproval, isOnSystemPath):
         state.isInstalled = isInstalled
         state.requiresApproval = requiresApproval
         state.isOnSystemPath = isOnSystemPath
@@ -138,19 +164,22 @@ public struct AppFeature {
         state.isServiceRunning = false
         state.connections = []
         state.health = nil
+        state.bridgeStatus = .booting
         return .none
 
       case .settings:
         return .none
 
-      case .statusEvent(let event):
-        switch event.kind {
-        case .connectionOpened:
-          if !state.connections.contains(where: { $0.id == event.connection.id }) {
-            state.connections.append(event.connection)
+      case let .statusEvent(event):
+        switch event {
+        case let .connectionOpened(info):
+          if !state.connections.contains(where: { $0.id == info.id }) {
+            state.connections.append(info)
           }
-        case .connectionClosed:
-          state.connections.removeAll { $0.id == event.connection.id }
+        case let .connectionClosed(info):
+          state.connections.removeAll { $0.id == info.id }
+        case let .bridgeStateChanged(status):
+          state.bridgeStatus = status
         }
         return .none
 
@@ -159,12 +188,14 @@ public struct AppFeature {
         state.health = nil
         state.tools.tools = []
         state.isServiceRunning = false
+        state.bridgeStatus = .booting
         return .none
 
-      case .statusResponse(let response):
+      case let .statusResponse(response):
         state.connections = response.connections
         state.health = response.health
         state.tools.tools = response.tools
+        state.bridgeStatus = response.bridge
         state.isServiceRunning = true
         return .send(.tools(.toolsChangedInternal))
 
@@ -176,7 +207,7 @@ public struct AppFeature {
         return .merge(
           poll(),
           subscribeToEvents(),
-          tickClock()
+          tickClock(),
         )
 
       case .tools:
@@ -190,34 +221,34 @@ public struct AppFeature {
     state.isInstalled = serviceInstaller.isInstalled()
     state.requiresApproval = serviceInstaller.requiresApproval()
     state.isOnSystemPath = serviceInstaller.isOnSystemPath()
-    let clock = self.clock
-    let statusClient = self.statusClient
-    let installer = self.serviceInstaller
+    let clock = clock
+    let statusClient = statusClient
+    let installer = serviceInstaller
     return .run { send in
       try? await clock.sleep(for: .seconds(1))
       await send(
         .installStatusRefreshed(
           isInstalled: installer.isInstalled(),
           requiresApproval: installer.requiresApproval(),
-          isOnSystemPath: installer.isOnSystemPath()
-        )
+          isOnSystemPath: installer.isOnSystemPath(),
+        ),
       )
       await Self.fetchOnce(statusClient: statusClient, send: send)
     }
   }
 
   private func poll() -> Effect<Action> {
-    let clock = self.clock
-    let statusClient = self.statusClient
-    let installer = self.serviceInstaller
+    let clock = clock
+    let statusClient = statusClient
+    let installer = serviceInstaller
     return .run { send in
       while !Task.isCancelled {
         await send(
           .installStatusRefreshed(
             isInstalled: installer.isInstalled(),
             requiresApproval: installer.requiresApproval(),
-            isOnSystemPath: installer.isOnSystemPath()
-          )
+            isOnSystemPath: installer.isOnSystemPath(),
+          ),
         )
         await Self.fetchOnce(statusClient: statusClient, send: send)
         try? await clock.sleep(for: .seconds(2))
@@ -236,7 +267,7 @@ public struct AppFeature {
   }
 
   private func subscribeToEvents() -> Effect<Action> {
-    let statusClient = self.statusClient
+    let statusClient = statusClient
     return .run { send in
       for await event in statusClient.events() {
         await send(.statusEvent(event))
@@ -246,7 +277,7 @@ public struct AppFeature {
   }
 
   private func tickClock() -> Effect<Action> {
-    let clock = self.clock
+    let clock = clock
     return .run { send in
       for await _ in clock.timer(interval: .seconds(1)) {
         @Dependency(\.date.now) var now

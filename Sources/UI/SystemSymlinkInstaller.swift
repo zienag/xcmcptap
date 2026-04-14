@@ -2,8 +2,8 @@ import Darwin.C
 import class Foundation.Bundle
 import func Foundation.NSHomeDirectory
 import ServiceManagement
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 /// Errors raised by the system-symlink install flow that callers may want to
 /// react to specifically (e.g. opening Login Items when approval is needed).
@@ -22,7 +22,7 @@ public struct HelperSession: Sendable {
 
   public init(
     send: @Sendable @escaping (HelperRequest) async throws -> HelperResponse,
-    close: @Sendable @escaping () -> Void
+    close: @Sendable @escaping () -> Void,
   ) {
     self.send = send
     self.close = close
@@ -38,7 +38,7 @@ public struct SystemSymlinkInstaller: Sendable {
 
   public init(
     registerDaemon: @Sendable @escaping () async throws -> Void,
-    openHelperSession: @Sendable @escaping () async throws -> HelperSession
+    openHelperSession: @Sendable @escaping () async throws -> HelperSession,
   ) {
     self.registerDaemon = registerDaemon
     self.openHelperSession = openHelperSession
@@ -66,10 +66,10 @@ public struct SystemSymlinkInstaller: Sendable {
   }
 }
 
-extension SystemSymlinkInstaller {
+public extension SystemSymlinkInstaller {
   /// Live wiring: registers the bundled helper daemon plist with SMAppService
   /// and opens an XPC session to the helper's Mach service.
-  public static let live = SystemSymlinkInstaller(
+  static let live = SystemSymlinkInstaller(
     registerDaemon: {
       let daemon = SMAppService.daemon(plistName: "\(MCPTap.helperServiceName).plist")
       do {
@@ -89,7 +89,7 @@ extension SystemSymlinkInstaller {
       let xpc = try XPCSession(
         machService: MCPTap.helperServiceName,
         incomingMessageHandler: { (_: HelperResponse) -> (any Encodable)? in nil },
-        cancellationHandler: nil
+        cancellationHandler: nil,
       )
       return HelperSession(
         send: { request in
@@ -97,8 +97,8 @@ extension SystemSymlinkInstaller {
         },
         close: {
           xpc.cancel(reason: "helper session done")
-        }
+        },
       )
-    }
+    },
   )
 }

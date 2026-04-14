@@ -9,7 +9,7 @@ func hostedInWindow(_ view: some View, size: CGSize) -> NSHostingController<AnyV
     contentRect: CGRect(origin: .zero, size: size),
     styleMask: [.titled, .closable, .resizable],
     backing: .buffered,
-    defer: false
+    defer: false,
   )
   window.contentViewController = controller
   window.layoutIfNeeded()

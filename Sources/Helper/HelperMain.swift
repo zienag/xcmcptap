@@ -1,7 +1,7 @@
 import Darwin.C
 import class Foundation.ProcessInfo
-import XPC
 import XcodeMCPTapShared
+import XPC
 
 public enum HelperMain {
   public static func run() {
@@ -12,21 +12,20 @@ public enum HelperMain {
     let allowAnyPeer = env["HELPER_ALLOW_ANY_PEER"] == "1"
     fputs(
       "[helper] listening on \(machService), destination=\(destination), allowAnyPeer=\(allowAnyPeer)\n",
-      stderr
+      stderr,
     )
 
     let handler = HelperHandler(destination: destination)
 
     do {
-      let listener: XPCListener
-      if allowAnyPeer {
-        listener = try XPCListener(service: machService) { request in
+      let listener: XPCListener = if allowAnyPeer {
+        try XPCListener(service: machService) { request in
           Self.accept(request, handler: handler)
         }
       } else {
-        listener = try XPCListener(
+        try XPCListener(
           service: machService,
-          requirement: .isFromSameTeam(andMatchesSigningIdentifier: MCPTap.serviceName)
+          requirement: .isFromSameTeam(andMatchesSigningIdentifier: MCPTap.serviceName),
         ) { request in
           Self.accept(request, handler: handler)
         }
@@ -43,13 +42,13 @@ public enum HelperMain {
 
   private static func accept(
     _ request: XPCListener.IncomingSessionRequest,
-    handler: HelperHandler
+    handler: HelperHandler,
   ) -> XPCListener.IncomingSessionRequest.Decision {
     let (decision, _) = request.accept(
       incomingMessageHandler: { (req: HelperRequest) -> HelperResponse in
         handler.handle(req)
       },
-      cancellationHandler: nil
+      cancellationHandler: nil,
     )
     return decision
   }

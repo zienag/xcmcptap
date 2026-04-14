@@ -1,7 +1,7 @@
-import class Foundation.JSONDecoder
-import class Foundation.NSLock
 import struct Foundation.Data
 import struct Foundation.Decimal
+import class Foundation.JSONDecoder
+import class Foundation.NSLock
 import struct Foundation.UUID
 import Testing
 import XcodeMCPTapService
@@ -28,7 +28,7 @@ struct BridgeRecoveryTests {
       let failMode = n == 1 ? "at-startup" : "normal"
       return MCPConnection(
         exec: "/usr/bin/python3",
-        args: ["-u", Self.mockBridge, "--fail", failMode]
+        args: ["-u", Self.mockBridge, "--fail", failMode],
       )
     }
 
@@ -43,7 +43,7 @@ struct BridgeRecoveryTests {
     // Attempt 1 — bridge dies at startup, client sees error.
     router.handleClientMessage(
       from: clientID,
-      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#
+      #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#,
     )
     let first = try await collector.nextResponse()
     let firstEnv = try JSONDecoder().decode(RPCEnvelope.self, from: Data(first.utf8))
@@ -54,7 +54,7 @@ struct BridgeRecoveryTests {
     // initialize must drive a respawn and succeed with a cached init.
     router.handleClientMessage(
       from: clientID,
-      #"{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#
+      #"{"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"\#(MCPProtocol.version)","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}"#,
     )
     let second = try await collector.nextResponse(timeout: .seconds(5))
     let secondEnv = try JSONDecoder().decode(RPCEnvelope.self, from: Data(second.utf8))
@@ -66,11 +66,11 @@ struct BridgeRecoveryTests {
     // Follow-up tools/list against the live bridge should also work.
     router.handleClientMessage(
       from: clientID,
-      #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#
+      #"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
     )
     router.handleClientMessage(
       from: clientID,
-      #"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#
+      #"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#,
     )
     let third = try await collector.nextResponse()
     let thirdEnv = try JSONDecoder().decode(RPCEnvelope.self, from: Data(third.utf8))

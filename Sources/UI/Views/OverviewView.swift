@@ -16,12 +16,36 @@ public struct OverviewView: View {
           approvalBanner
         }
         statusBar
+        if store.isServiceRunning {
+          bridgeStatusCard
+        }
         statsGrid
       }
       .padding(Spacing.l)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .navigationTitle("Overview")
+  }
+
+  private var bridgeStatusCard: some View {
+    HStack(alignment: .top, spacing: Spacing.s) {
+      BridgeStatusDot(status: store.bridgeStatus)
+        .padding(.top, 3)
+      VStack(alignment: .leading, spacing: Spacing.hairline) {
+        Text(store.bridgeStatusTitle)
+          .font(.subheadline.weight(.semibold))
+          .lineLimit(1)
+          .minimumScaleFactor(0.85)
+        Text(store.bridgeStatusDetail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Spacer(minLength: Spacing.s)
+    }
+    .padding(.horizontal, Spacing.l)
+    .padding(.vertical, Spacing.m)
+    .cardSurface(radius: Radius.large)
   }
 
   private var approvalBanner: some View {
@@ -83,34 +107,34 @@ public struct OverviewView: View {
   private var statsGrid: some View {
     LazyVGrid(
       columns: Array(repeating: GridItem(.flexible(), spacing: Spacing.s), count: 4),
-      spacing: Spacing.s
+      spacing: Spacing.s,
     ) {
       StatTile(
         label: "Tools",
         value: "\(store.tools.tools.count)",
         icon: "wrench.and.screwdriver.fill",
-        tint: .orange
+        tint: .orange,
       ) { store.selection = .tools }
 
       StatTile(
         label: "Active",
         value: "\(store.connections.count)",
         icon: "personalhotspot",
-        tint: .green
+        tint: .green,
       ) { store.selection = .connections }
 
       StatTile(
         label: "Served",
         value: "\(store.health?.totalConnectionsServed ?? 0)",
         icon: "tray.full.fill",
-        tint: .blue
+        tint: .blue,
       )
 
       StatTile(
         label: "Messages",
         value: "\(store.totalMessagesRouted)",
         icon: "arrow.left.arrow.right",
-        tint: .purple
+        tint: .purple,
       )
     }
   }
@@ -129,7 +153,7 @@ public struct StatTile: View {
     value: String,
     icon: String,
     tint: Color,
-    action: (() -> Void)? = nil
+    action: (() -> Void)? = nil,
   ) {
     self.label = label
     self.value = value
@@ -146,7 +170,7 @@ public struct StatTile: View {
         .frame(width: IconSize.tile, height: IconSize.tile)
         .background(
           tint.opacity(SurfaceOpacity.iconTint),
-          in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+          in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous),
         )
       VStack(alignment: .leading, spacing: 0) {
         Text(value)
@@ -188,13 +212,13 @@ public struct StatTile: View {
 }
 
 #if DEBUG
-#Preview("Running") {
-  OverviewView(store: Store(initialState: .previewRunning()) { AppFeature() })
-    .frame(width: 640, height: 200)
-}
+  #Preview("Running") {
+    OverviewView(store: Store(initialState: .previewRunning()) { AppFeature() })
+      .frame(width: 640, height: 200)
+  }
 
-#Preview("Not installed") {
-  OverviewView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
-    .frame(width: 640, height: 200)
-}
+  #Preview("Not installed") {
+    OverviewView(store: Store(initialState: .previewNotInstalled()) { AppFeature() })
+      .frame(width: 640, height: 200)
+  }
 #endif

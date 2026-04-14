@@ -262,14 +262,18 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--fail",
-        choices=("normal", "at-startup", "after-init"),
+        choices=("normal", "at-startup", "after-init", "hang-after-init"),
         default="normal",
         help=(
             "normal: full mcpbridge simulation (default); "
             "at-startup: emit the real xcrun mcpbridge fatal-error line "
             "and exit before reading stdin, mimicking 'Xcode not running'; "
             "after-init: complete init handshake, then crash on the first "
-            "post-init request (tools/list, tools/call, ...)."
+            "post-init request (tools/list, tools/call, ...); "
+            "hang-after-init: complete init handshake, then silently "
+            "swallow every post-init request — the subprocess stays alive "
+            "but never writes another byte, mimicking 'Xcode quit so the "
+            "tool-service is gone but mcpbridge is still up'."
         ),
     )
     return parser.parse_args(argv)
@@ -311,6 +315,14 @@ def main():
             sys.stderr.write("mcpbridge simulated mid-session crash\n")
             sys.stderr.flush()
             sys.exit(134)
+
+        if (
+            args.fail == "hang-after-init"
+            and state.initialized
+            and req.get("method") != "notifications/initialized"
+        ):
+            log(f"hang-after-init: swallowing {req.get('method')}")
+            continue
 
         resp = handle(req, state, emit)
         if resp is not None:

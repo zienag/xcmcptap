@@ -16,18 +16,18 @@ public struct CardSurface: ViewModifier {
     content
       .background(
         .background.secondary,
-        in: RoundedRectangle(cornerRadius: radius, style: .continuous)
+        in: RoundedRectangle(cornerRadius: radius, style: .continuous),
       )
       .modifier(CardBorder(radius: radius))
   }
 }
 
-extension View {
-  public func cardBorder(radius: CGFloat = Radius.medium) -> some View {
+public extension View {
+  func cardBorder(radius: CGFloat = Radius.medium) -> some View {
     modifier(CardBorder(radius: radius))
   }
 
-  public func cardSurface(radius: CGFloat = Radius.medium) -> some View {
+  func cardSurface(radius: CGFloat = Radius.medium) -> some View {
     modifier(CardSurface(radius: radius))
   }
 }

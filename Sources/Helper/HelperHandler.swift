@@ -9,12 +9,12 @@ public struct HelperHandler: Sendable {
 
   public func handle(_ request: HelperRequest) -> HelperResponse {
     switch request {
-    case .installSymlink(let sourcePath):
-      return SymlinkOperations.install(source: sourcePath, destination: destination)
+    case let .installSymlink(sourcePath):
+      SymlinkOperations.install(source: sourcePath, destination: destination)
     case .removeSymlink:
-      return SymlinkOperations.remove(destination: destination)
+      SymlinkOperations.remove(destination: destination)
     case .status:
-      return .success
+      .success
     }
   }
 }
