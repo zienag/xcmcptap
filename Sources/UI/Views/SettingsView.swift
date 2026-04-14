@@ -140,6 +140,7 @@ public struct SettingsView: View {
       if store.isInstalled {
         Button("Reinstall") { store.send(.settings(.installTapped)) }
         Button("Uninstall", role: .destructive) { store.send(.settings(.uninstallTapped)) }
+        systemPathButton
       } else {
         Button("Install service") { store.send(.settings(.installTapped)) }
           .buttonStyle(.borderedProminent)
@@ -147,6 +148,19 @@ public struct SettingsView: View {
       Spacer()
     }
     .controlSize(.regular)
+  }
+
+  @ViewBuilder
+  private var systemPathButton: some View {
+    if store.isOnSystemPath {
+      Button("Remove from /usr/local/bin") {
+        store.send(.settings(.uninstallSystemPathTapped))
+      }
+    } else {
+      Button("Install to /usr/local/bin") {
+        store.send(.settings(.installSystemPathTapped))
+      }
+    }
   }
 }
 

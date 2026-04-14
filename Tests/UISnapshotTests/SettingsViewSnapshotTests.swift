@@ -53,4 +53,27 @@ struct SettingsViewSnapshotTests {
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
     assertSnapshot(of: controller, as: .image(size: Self.size))
   }
+
+  @Test
+  func installedOnSystemPath() {
+    var state = AppFeature.State.previewRunning()
+    state.isOnSystemPath = true
+    let controller = NSHostingController(
+      rootView: SettingsView(store: Store(initialState: state) { AppFeature() })
+    )
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, as: .image(size: Self.size))
+  }
+
+  @Test
+  func installedOnSystemPathRTL() {
+    var state = AppFeature.State.previewRunning()
+    state.isOnSystemPath = true
+    let controller = NSHostingController(
+      rootView: SettingsView(store: Store(initialState: state) { AppFeature() })
+        .environment(\.layoutDirection, .rightToLeft)
+    )
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, as: .image(size: Self.size))
+  }
 }

@@ -10,6 +10,7 @@ public struct AppFeature {
     public var connections: [ConnectionInfo] = []
     public var health: ServiceHealth?
     public var isInstalled: Bool = false
+    public var isOnSystemPath: Bool = false
     public var isServiceRunning: Bool = false
     public var logPath: String = ServiceInstaller.logPath
     public var now: Date = .distantPast
@@ -17,12 +18,14 @@ public struct AppFeature {
     public var requiresApproval: Bool = false
     public var selection: SidebarItem = .overview
     public var settings: SettingsFeature.State = .init()
+    public var systemPath: String = ServiceInstaller.systemLinkPath
     public var tools: ToolsFeature.State = .init()
 
     public init(
       connections: [ConnectionInfo] = [],
       health: ServiceHealth? = nil,
       isInstalled: Bool = false,
+      isOnSystemPath: Bool = false,
       isServiceRunning: Bool = false,
       now: Date = .distantPast,
       requiresApproval: Bool = false,
@@ -33,6 +36,7 @@ public struct AppFeature {
       self.connections = connections
       self.health = health
       self.isInstalled = isInstalled
+      self.isOnSystemPath = isOnSystemPath
       self.isServiceRunning = isServiceRunning
       self.now = now
       self.requiresApproval = requiresApproval
@@ -42,7 +46,7 @@ public struct AppFeature {
     }
 
     public var integrations: [Integration] {
-      Integration.all(clientPath: clientPath)
+      Integration.all(clientPath: clientPath, onSystemPath: isOnSystemPath)
     }
 
     public var uptimeText: String? {
@@ -59,7 +63,7 @@ public struct AppFeature {
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case clockTick(Date)
-    case installStatusRefreshed(isInstalled: Bool, requiresApproval: Bool)
+    case installStatusRefreshed(isInstalled: Bool, requiresApproval: Bool, isOnSystemPath: Bool)
     case installTapped
     case openLoginItemsTapped
     case settings(SettingsFeature.Action)
@@ -100,9 +104,10 @@ public struct AppFeature {
         state.now = date
         return .none
 
-      case .installStatusRefreshed(let isInstalled, let requiresApproval):
+      case .installStatusRefreshed(let isInstalled, let requiresApproval, let isOnSystemPath):
         state.isInstalled = isInstalled
         state.requiresApproval = requiresApproval
+        state.isOnSystemPath = isOnSystemPath
         return .none
 
       case .installTapped:
@@ -115,10 +120,21 @@ public struct AppFeature {
       case .settings(.delegate(.install)):
         return install(&state)
 
+      case .settings(.delegate(.installSystemPath)):
+        serviceInstaller.installSystemPath()
+        state.isOnSystemPath = serviceInstaller.isOnSystemPath()
+        return .none
+
+      case .settings(.delegate(.uninstallSystemPath)):
+        serviceInstaller.uninstallSystemPath()
+        state.isOnSystemPath = serviceInstaller.isOnSystemPath()
+        return .none
+
       case .settings(.delegate(.uninstall)):
         serviceInstaller.uninstall()
         state.isInstalled = false
         state.requiresApproval = false
+        state.isOnSystemPath = false
         state.isServiceRunning = false
         state.connections = []
         state.health = nil
@@ -156,6 +172,7 @@ public struct AppFeature {
         state.now = nowProvider
         state.isInstalled = serviceInstaller.isInstalled()
         state.requiresApproval = serviceInstaller.requiresApproval()
+        state.isOnSystemPath = serviceInstaller.isOnSystemPath()
         return .merge(
           poll(),
           subscribeToEvents(),
@@ -172,6 +189,7 @@ public struct AppFeature {
     serviceInstaller.install()
     state.isInstalled = serviceInstaller.isInstalled()
     state.requiresApproval = serviceInstaller.requiresApproval()
+    state.isOnSystemPath = serviceInstaller.isOnSystemPath()
     let clock = self.clock
     let statusClient = self.statusClient
     let installer = self.serviceInstaller
@@ -180,7 +198,8 @@ public struct AppFeature {
       await send(
         .installStatusRefreshed(
           isInstalled: installer.isInstalled(),
-          requiresApproval: installer.requiresApproval()
+          requiresApproval: installer.requiresApproval(),
+          isOnSystemPath: installer.isOnSystemPath()
         )
       )
       await Self.fetchOnce(statusClient: statusClient, send: send)
@@ -196,7 +215,8 @@ public struct AppFeature {
         await send(
           .installStatusRefreshed(
             isInstalled: installer.isInstalled(),
-            requiresApproval: installer.requiresApproval()
+            requiresApproval: installer.requiresApproval(),
+            isOnSystemPath: installer.isOnSystemPath()
           )
         )
         await Self.fetchOnce(statusClient: statusClient, send: send)

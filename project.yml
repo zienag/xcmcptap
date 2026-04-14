@@ -35,12 +35,19 @@ targets:
         excludes:
           - xcmcptap
           - xcmcptapd
+          - xcmcptap-helper
           - LaunchAgents
+          - LaunchDaemons
       - path: App/LaunchAgents/alfred.xcmcptap.plist
         buildPhase:
           copyFiles:
             destination: wrapper
             subpath: Contents/Library/LaunchAgents
+      - path: App/LaunchDaemons/alfred.xcmcptap.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapUI
@@ -50,6 +57,11 @@ targets:
         copy:
           destination: executables
       - target: xcmcptap
+        embed: true
+        codeSign: false
+        copy:
+          destination: executables
+      - target: xcmcptap-helper
         embed: true
         codeSign: false
         copy:
@@ -92,3 +104,30 @@ targets:
         PRODUCT_NAME: xcmcptapd
         ENABLE_HARDENED_RUNTIME: YES
         SKIP_INSTALL: YES
+
+  xcmcptap-helper:
+    type: tool
+    platform: macOS
+    sources:
+      - App/xcmcptap-helper
+    dependencies:
+      - package: XcodeMCPTapPackage
+        product: XcodeMCPTapHelper
+    settings:
+      base:
+        PRODUCT_NAME: xcmcptap-helper
+        ENABLE_HARDENED_RUNTIME: YES
+        SKIP_INSTALL: YES
+
+  XcodeMCPTapUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - UITests/XcodeMCPTapUITests
+    dependencies:
+      - target: XcodeMCPTap
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: alfred.xcmcptap.uitests
+        TEST_TARGET_NAME: XcodeMCPTap
+        GENERATE_INFOPLIST_FILE: YES

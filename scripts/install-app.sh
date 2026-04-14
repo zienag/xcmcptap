@@ -15,7 +15,10 @@ open "$APP_PATH"
 cat <<EOF
 
 Click "Install service" in the app's Settings tab to register the LaunchAgent,
-then configure Claude Code with:
+then configure your MCP client (Claude Code, Codex, Cursor, VS Code, ...) to
+point at:
 
-  claude mcp add --transport stdio xcode -- $CLIENT_LINK
+  $CLIENT_LINK
+
+The Integrations tab in Settings shows ready-to-copy snippets for each client.
 EOF

@@ -51,9 +51,9 @@ public enum ServiceMain {
 
     sleep(2)
 
-    let listener = try! XPCListener(
-      service: MCPTap.serviceName
-    ) { request in
+    let listener: XPCListener
+    do {
+      listener = try XPCListener(service: MCPTap.serviceName) { request in
       fputs("[service] new XPC connection\n", stderr)
       let connectionID = UUID()
 
@@ -79,9 +79,19 @@ public enum ServiceMain {
       let snapshot = bridgePID.withLock { $0 }
       _ = registry.register(id: connectionID, bridgePID: snapshot)
       return decision
+      }
+    } catch {
+      fputs("[service] failed to activate MCP listener: \(error)\n", stderr)
+      exit(EX_CONFIG)
     }
 
-    let statusListener = try! statusEndpoint.start()
+    let statusListener: XPCListener
+    do {
+      statusListener = try statusEndpoint.start()
+    } catch {
+      fputs("[service] failed to activate status listener: \(error)\n", stderr)
+      exit(EX_CONFIG)
+    }
     fputs("[service] listeners ready\n", stderr)
 
     withExtendedLifetime((listener, statusListener, router)) {

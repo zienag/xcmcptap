@@ -3,14 +3,12 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>alfred.xcmcptap</string>
+    <string>alfred.xcmcptap.helper</string>
     <key>BundleProgram</key>
-    <string>Contents/MacOS/xcmcptapd</string>
+    <string>Contents/MacOS/xcmcptap-helper</string>
     <key>MachServices</key>
     <dict>
-        <key>alfred.xcmcptap</key>
-        <true/>
-        <key>alfred.xcmcptap.status</key>
+        <key>alfred.xcmcptap.helper</key>
         <true/>
     </dict>
     <key>AssociatedBundleIdentifiers</key>

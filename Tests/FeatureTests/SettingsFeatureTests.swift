@@ -99,4 +99,24 @@ struct SettingsFeatureTests {
     await store.send(.installTapped)
     await store.receive(\.delegate.install)
   }
+
+  @Test
+  func installSystemPathTappedEmitsDelegate() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    }
+
+    await store.send(.installSystemPathTapped)
+    await store.receive(\.delegate.installSystemPath)
+  }
+
+  @Test
+  func uninstallSystemPathTappedEmitsDelegate() async {
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    }
+
+    await store.send(.uninstallSystemPathTapped)
+    await store.receive(\.delegate.uninstallSystemPath)
+  }
 }

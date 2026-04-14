@@ -8,6 +8,7 @@ let package = Package(
     .library(name: "XcodeMCPTapShared", targets: ["XcodeMCPTapShared"]),
     .library(name: "XcodeMCPTapClient", targets: ["XcodeMCPTapClient"]),
     .library(name: "XcodeMCPTapService", targets: ["XcodeMCPTapService"]),
+    .library(name: "XcodeMCPTapHelper", targets: ["XcodeMCPTapHelper"]),
     .library(name: "XcodeMCPTapUI", targets: ["XcodeMCPTapUI"]),
   ],
   dependencies: [
@@ -31,6 +32,11 @@ let package = Package(
       path: "Sources/Service"
     ),
     .target(
+      name: "XcodeMCPTapHelper",
+      dependencies: ["XcodeMCPTapShared"],
+      path: "Sources/Helper"
+    ),
+    .target(
       name: "XcodeMCPTapUI",
       dependencies: [
         "XcodeMCPTapShared",
@@ -43,11 +49,17 @@ let package = Package(
       dependencies: ["XcodeMCPTapShared"],
       path: "Sources/TestEchoServer"
     ),
+    .executableTarget(
+      name: "xcmcptap-helper",
+      dependencies: ["XcodeMCPTapHelper"],
+      path: "Sources/HelperExec"
+    ),
     .testTarget(
       name: "XPCTests",
       dependencies: [
         "XcodeMCPTapService",
         "XcodeMCPTapShared",
+        "XcodeMCPTapHelper",
         .product(name: "Subprocess", package: "swift-subprocess"),
       ],
       path: "Tests/XPCTests"

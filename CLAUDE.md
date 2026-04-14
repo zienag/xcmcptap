@@ -49,7 +49,7 @@ swift test --filter UISnapshotTests    # Or filter by target name
 # Install & distribute
 ./install.sh                           # Regenerate project, build release, sign, notarize, install to ~/Applications
 ./install.sh --dmg                     # Same as above, but package into a .dmg instead of installing
-./install.sh --uninstall               # Remove app, LaunchAgent, and symlink
+scripts/uninstall.sh                   # Remove app, LaunchAgent, helper daemon, ~/.local/bin + /usr/local/bin symlinks
 ```
 
 **Warnings-as-errors:** Xcode builds enforce this via `SWIFT_TREAT_WARNINGS_AS_ERRORS: YES` in `project.yml`. SPM has no clean Package.swift setting for this — pass `-Xswiftc -warnings-as-errors` on the command line.
@@ -62,17 +62,22 @@ The `.xcodeproj` is generated from `project.yml` via [XcodeGen](https://github.c
 
 ### Testing
 
-All tests are SPM targets. Run via `swift test` or the Xcode scheme.
+Most tests are SPM targets run via `swift test`. The XCUITest bundle (`XcodeMCPTapUITests`) is an Xcode target — run it through `xcodebuild ... test` against the XcodeMCPTap scheme.
 
 - **`XPCTests`** (`Tests/XPCTests/`) — Service-layer integration tests.
   - **`SubprocessRoundTripTests`** — Verifies subprocess stdio with `scripts/mock-mcpbridge.py` and real mcpbridge. No LaunchAgent needed.
   - **`MCPBridgeHandshakeTests`** — Exercises the raw mcpbridge init handshake outside XPC.
   - **`MCPProxyTests`** — Tests `BridgeProcess` + `MCPRouter` directly (no XPC). Instantiates the classes, points them at `scripts/mock-mcpbridge.py`, and verifies the full MCP message flow: init handshake, tools/list, tools/call, buffering during init. Includes `xcodeListWindowsClaudeCodeStyle` which replays the exact Claude Code wire traffic (field ordering, `_meta.claudecode/toolUseId`, `progressToken`) and pins the real mcpbridge response shape for `XcodeListWindows`.
   - **`XPCTests`** (echo tests) — Require the echo server LaunchAgent to be registered. The first `swift test` run auto-registers it via `launchctl bootstrap`. The service persists across runs (service name: `alfred.xcmcptap.test-echo`).
+  - **`SymlinkOperationsTests` / `HelperHandlerTests`** — Pure unit tests for the privileged helper's file ops and request dispatch, exercised against `$TMPDIR` destinations. No XPC, no launchd.
+  - **`HelperProtocolTests`** — Codable round-trip for `HelperRequest` / `HelperResponse`.
+  - **`HelperEndToEndTests`** — Bootstraps the same `xcmcptap-helper` SPM executable as a user-level LaunchAgent (service name `alfred.xcmcptap.test-helper`, env `HELPER_MACH_SERVICE` + `HELPER_DESTINATION` + `HELPER_ALLOW_ANY_PEER=1`), then drives the full XPC flow. Always re-bootstraps so plist env stays in sync with the test. Proves production binary works without needing root or a signed daemon registration.
 
 - **`UISnapshotTests`** (`Tests/UISnapshotTests/`) — SwiftUI snapshot tests against `XcodeMCPTapUI` using [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing). Pattern: host the view in `NSHostingController`, then `assertSnapshot(of: controller, as: .image(size:))`. Suite-level `.snapshots(record: .missing)` auto-records new baselines. Baselines live in `Tests/UISnapshotTests/__Snapshots__/<suite>/<test>.1.png` and are committed.
 
-- **`FeatureTests`** (`Tests/FeatureTests/`) — TCA `TestStore` tests for the UI reducers. Use `TestClock` for time-dependent effects, override `@Dependency` via `withDependencies:`. Time in state is pinned via `AppFeature.State.previewNow` so snapshot and TestStore fixtures share a clock.
+- **`FeatureTests`** (`Tests/FeatureTests/`) — TCA `TestStore` tests for the UI reducers, `SystemSymlinkInstallerTests` (mock-driven orchestration of the helper flow), and `BundledPlistTests` which statically reads `App/LaunchAgents/*.plist` + `App/LaunchDaemons/*.plist` and asserts every `BundleProgram` resolves to `Contents/MacOS/<tool>` — see the BundleProgram rule under "Key design details". Use `TestClock` for time-dependent effects, override `@Dependency` via `withDependencies:`. Time in state is pinned via `AppFeature.State.previewNow` so snapshot and TestStore fixtures share a clock.
+
+- **`XcodeMCPTapUITests`** (`UITests/XcodeMCPTapUITests/`) — Xcode UI-testing bundle (not an SPM target). Launches the packaged `.app`, drives the Settings pane, clicks "Install service", waits up to 10s for the sidebar to flip to "Service running", and tears down. Catches an agent plist whose `BundleProgram` doesn't resolve — `xcmcptapd` fails with `EX_CONFIG (78)` at launchd and the sidebar stays stuck. The daemon-install flow (`/usr/local/bin` via `SMAppService.daemon`) is *not* covered: the Login Items approval requires Touch ID / admin password and cannot be automated without a user-approved MDM profile, which itself cannot be installed locally (`com.apple.servicemanagement` has `allowmanualinstall: false`). Run: `xcodebuild -project XcodeMCPTap.xcodeproj -scheme XcodeMCPTap -destination 'platform=macOS' -only-testing:XcodeMCPTapUITests test`.
 
 **XPC session lifecycle:** `XPCSession` must be cancelled via `session.cancel(reason:)` before deallocation — otherwise it crashes with `_xpc_api_misuse`. Always use `defer { session.cancel(reason:) }`.
 
@@ -84,40 +89,47 @@ Xcode MCP Tap is a signed, notarized macOS .app that keeps a single `mcpbridge` 
 
 ```
 Agent ←stdio→ xcmcptap ←XPC→ xcmcptapd ←stdin/stdout→ /usr/bin/xcrun mcpbridge
+                                                        (optional, privileged)
+                                       ↘ XPC → xcmcptap-helper → FileManager
 ```
 
 ### Self-registration
 
-The app (`App/`) handles installation; the service binary runs as a plain XPC listener:
-- **Launch app** (double-click .app) — `ServiceInstaller.install()` registers LaunchAgent, creates `~/.local/bin/xcmcptap` symlink
-- **Service** (launched by launchd) — `xcmcptapd` starts XPC listener, runs as persistent service
-- **Uninstall** — `ServiceInstaller.uninstall()` removes LaunchAgent plist, symlink, boots out service
+The app (`App/`) handles installation; the service and helper binaries run as plain XPC listeners:
+- **Launch app** (double-click .app) — `ServiceInstaller.install()` calls `SMAppService.agent(plistName:).register()` and creates `~/.local/bin/xcmcptap`.
+- **Service** (launched by launchd) — `xcmcptapd` starts XPC listener, runs as persistent user agent.
+- **System-path symlink** (optional, from Settings) — `SystemSymlinkInstaller.live` calls `SMAppService.daemon(plistName:).register()`, then opens an `XPCSession` to `xcmcptap-helper` running as a LaunchDaemon. The helper does `FileManager.createSymbolicLink` to `/usr/local/bin/xcmcptap`. No shell, no `osascript`. The first `register()` throws `SMAppServiceError.operationNotPermitted` until the user approves the item in System Settings > Login Items; we detect `daemon.status == .requiresApproval`, throw our own `SystemSymlinkInstallerError.requiresApproval`, and call `SMAppService.openSystemSettingsLoginItems()` so the user lands on the right pane. After the switch is on, a subsequent click succeeds silently.
+- **Uninstall** — `ServiceInstaller.uninstall()` tears down the system symlink first (while the helper XPC connection is still live), then unregisters the agent and removes `~/.local/bin/xcmcptap`. `scripts/uninstall.sh` also does user-side cleanup, moves `.app` to Trash via Finder, and `sudo`-removes `/usr/local/bin/xcmcptap` + any SMAppService-staged daemon plist only if they actually exist.
 
 ### Targets
 
-**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries only, no executables, no exclusions. `App/` is Xcode-native: the `.app` bundle's `@main` entry point and the two thin `@main` tool wrappers. Everything else (views, features, dependency clients, installer) lives in the `XcodeMCPTapUI` library so it's importable by tests and previewable from any package consumer.
+**Rule: code that can live in SPM lives in SPM.** `Sources/` is 100% SPM — libraries + two test-only executables (`xpc-test-echo-server`, `xcmcptap-helper`). `App/` is Xcode-native: the `.app` bundle's `@main` entry point and three thin `@main` tool wrappers (`xcmcptap`, `xcmcptapd`, `xcmcptap-helper`). Everything else (views, features, dependency clients, installer, system-symlink orchestration) lives in the `XcodeMCPTapUI` library so it's importable by tests and previewable from any package consumer.
 
 **SPM libraries** (`Package.swift`, all under `Sources/`):
 
 - **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing), plus the status protocol types (`StatusRequest/Response`, `ConnectionInfo`, `ServiceHealth`, `ToolInfo`, `StatusEvent`) — all `Equatable` so they can appear in `@ObservableState`. Used by every other target.
 - **XcodeMCPTapClient** (`Sources/Client/`) — Client logic: XPC session, stdin reader, stdout writer. Exposes `public enum ClientMain { public static func run() }`.
 - **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, plus `public enum ServiceMain { public static func run() }`. Imported by tests.
+- **XcodeMCPTapHelper** (`Sources/Helper/`) — Privileged helper logic: `SymlinkOperations` (pure `FileManager` ops, testable in `$TMPDIR`), `HelperHandler` (request→response dispatch keyed on an injectable `destination`), and `public enum HelperMain { public static func run() }` which reads `HELPER_MACH_SERVICE` / `HELPER_DESTINATION` / `HELPER_ALLOW_ANY_PEER` from env and spins up `XPCListener(service:requirement:)`. No knowledge of `/usr/local/bin`; all paths injected.
 - **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI + TCA layer. Organized into four folders:
   - `Views/` — `ContentView`, `OverviewView`, `ToolsView`, `ConnectionsView`, `SettingsView`, plus `StatusDot`, `SidebarItem`, `ToolCategory`, `formatUptime(interval:)`.
   - `Features/` — `AppFeature` (root reducer, owns global state + selection + `now`), `ToolsFeature` (search/selection sub-feature), `SettingsFeature` (copy-reset + uninstall-confirm sub-feature with a `Delegate` action that forwards install/uninstall intent to the root).
   - `Dependencies/` — `StatusClient` (wraps `XPCSession` + event stream in an actor, served via `@Dependency(\.statusClient)`), `ServiceInstallerClient` (install/uninstall/path accessors), `PasteboardClient` (NSPasteboard copy). Each exposes `liveValue` and `testValue`.
   - `DesignSystem/` — `Tokens.swift` (`Spacing`, `Radius`, `IconSize`, `SidebarWidth`, `WindowSize`, `SurfaceOpacity`, `BorderWidth` enums) and `Modifiers.swift` (`cardSurface()`, `cardBorder()`). See "UI layout conventions" below.
-  - Top-level `ServiceInstaller.swift` (the live implementation backing `ServiceInstallerClient`) and `PreviewState.swift` (`AppFeature.State.previewRunning()` etc.).
+  - Top-level `ServiceInstaller.swift` (live impl backing `ServiceInstallerClient`, owns `installSystemSymlink` / `uninstallSystemSymlink`), `SystemSymlinkInstaller.swift` (the `register daemon → open XPC → send request → close` flow with injectable `registerDaemon` / `openHelperSession` deps for tests; `.live` value wires real `SMAppService.daemon` + `XPCSession`), and `PreviewState.swift` (`AppFeature.State.previewRunning()` etc.).
 - **xpc-test-echo-server** (`Sources/TestEchoServer/`) — Test helper that echoes `MCPLine` messages back with "echo:" prefix.
+- **xcmcptap-helper** (`Sources/HelperExec/`) — SPM executable wrapper calling `HelperMain.run()`. Used by `HelperEndToEndTests` as a user-level LaunchAgent; the production copy shipped inside `.app` is the Xcode-native target of the same name.
 - **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, Subprocess round-trip tests, MCP proxy tests.
 - **UISnapshotTests** (`Tests/UISnapshotTests/`) — Swift Testing suite: SwiftUI snapshot tests over `XcodeMCPTapUI`.
 - **FeatureTests** (`Tests/FeatureTests/`) — Swift Testing suite: TCA `TestStore` tests over `AppFeature` / `ToolsFeature` / `SettingsFeature`.
 
 **Xcode targets** (`project.yml`):
 
-- **XcodeMCPTap** (synced folder `App/`, with `xcmcptap`/`xcmcptapd` excluded) — macOS Application target. `App/XcodeMCPTapApp.swift` holds the `@main App` and imports `XcodeMCPTapUI`. Embeds `xcmcptapd` and `xcmcptap` in `Contents/MacOS/` via Copy Files. The excludes are emitted as a `PBXFileSystemSynchronizedBuildFileExceptionSet` so those subdirs belong exclusively to their own tool targets.
+- **XcodeMCPTap** (synced folder `App/`, with `xcmcptap`/`xcmcptapd`/`xcmcptap-helper`/`LaunchAgents`/`LaunchDaemons` excluded) — macOS Application target. `App/XcodeMCPTapApp.swift` holds the `@main App` and imports `XcodeMCPTapUI`. Embeds all three tools in `Contents/MacOS/` via Copy Files, and copies `alfred.xcmcptap.plist` + `alfred.xcmcptap.helper.plist` into `Contents/Library/LaunchAgents/` and `Contents/Library/LaunchDaemons/` via dedicated `copyFiles` build phases. The excludes are emitted as a `PBXFileSystemSynchronizedBuildFileExceptionSet` so those subdirs belong exclusively to their own tool targets.
 - **xcmcptap** (synced folder `App/xcmcptap/`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapClient; ClientMain.run()`.
 - **xcmcptapd** (synced folder `App/xcmcptapd/`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapService; ServiceMain.run()`.
+- **xcmcptap-helper** (synced folder `App/xcmcptap-helper/`) — Xcode command-line tool target. Single-file `@main` wrapper: `import XcodeMCPTapHelper; HelperMain.run()`.
+- **XcodeMCPTapUITests** (`UITests/XcodeMCPTapUITests/`) — `bundle.ui-testing` target hosted by `XcodeMCPTap`. Covered under "Testing" above.
 
 **Why the tool targets are Xcode-native (not SPM executables):** SPM-built executables get `com.apple.security.get-task-allow` injected into their entitlements in Release builds, and `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO` at the xcodebuild level does not propagate to SPM products. That entitlement fails notarization. Xcode-native tool targets respect the setting cleanly, so `project.yml` sets `CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO` at the project level and `OTHER_CODE_SIGN_FLAGS: --timestamp` in the Release config. No post-build re-signing hacks needed.
 
@@ -133,6 +145,10 @@ The app (`App/`) handles installation; the service binary runs as a plain XPC li
 - **Thread safety:** All mutable shared state is guarded by `Mutex`. Classes use `@unchecked Sendable` when Mutex provides the safety guarantee. Use `nonisolated(unsafe) var` when synchronization is handled externally (e.g., semaphores in tests).
 - **TCA effects + strict concurrency:** `@Reducer struct` is not `Sendable`, so capturing `self` inside `.run { send in ... }` fails. Copy each `@Dependency` into a local before returning the effect: `let clock = self.clock; return .run { ... }`. Or make the effect body a `static` helper taking the deps as parameters.
 - **Nested action enums need `@CasePathable`:** `TestStore.receive(\.delegate.install)` traverses nested case paths. The outer `Action` gets it from `@Reducer`; inner enums (e.g. `SettingsFeature.Action.Delegate`) must be annotated explicitly.
+- **No crash operators.** `try!`, force-unwrap `!`, `fatalError`, `preconditionFailure` erase the underlying error. Handle it and surface a readable message instead.
+- **LaunchAgent/Daemon `BundleProgram` is rooted at the bundle, not at `Contents/`.** Always write `Contents/MacOS/<tool>` — launchd resolves the value relative to the app bundle's top-level directory, so `MacOS/xcmcptapd` silently becomes `/Applications/Xcode MCP Tap.app/MacOS/xcmcptapd`, which doesn't exist, and the service fails to spawn with `EX_CONFIG (78)` and no user-visible error. `BundledPlistTests` guards the source plists against regressions.
+- **`SMAppService.daemon(...).register()` throws until the user approves in Login Items.** BTM accepts the registration, but until the user flips the switch in System Settings > Login Items (Touch ID / admin password required), the call throws `SMAppServiceError.operationNotPermitted`. Check `daemon.status == .requiresApproval` to distinguish this from a real failure. There is no way to automate the approval — the `com.apple.servicemanagement` MDM profile is the only legitimate pre-approval mechanism, and it cannot be installed locally (`allowmanualinstall: false`, requires user-approved MDM enrollment).
+- **launchd caches agent/daemon jobs by Label across plist edits.** Calling `.register()` again after changing the bundled plist does not reload the job — launchd keeps the old `BundleProgram` and keeps failing on spawn. Evict with `launchctl bootout gui/$UID/<label>` (agent, no sudo) or `sudo launchctl bootout system/<label>` (daemon). `launchctl print` on the label shows the cached `program identifier` and `last exit code`. Production users don't hit this because they install once with the final plist; it's a development-workflow hazard.
 
 ### UI layout conventions
 

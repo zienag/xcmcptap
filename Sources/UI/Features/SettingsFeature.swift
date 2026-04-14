@@ -18,15 +18,19 @@ public struct SettingsFeature {
     case copyResetElapsed(id: String)
     case copyTapped(id: String, command: String)
     case delegate(Delegate)
+    case installSystemPathTapped
     case installTapped
     case uninstallCancelled
     case uninstallConfirmed
+    case uninstallSystemPathTapped
     case uninstallTapped
 
     @CasePathable
     public enum Delegate {
       case install
+      case installSystemPath
       case uninstall
+      case uninstallSystemPath
     }
   }
 
@@ -63,6 +67,12 @@ public struct SettingsFeature {
 
       case .installTapped:
         return .send(.delegate(.install))
+
+      case .installSystemPathTapped:
+        return .send(.delegate(.installSystemPath))
+
+      case .uninstallSystemPathTapped:
+        return .send(.delegate(.uninstallSystemPath))
 
       case .uninstallTapped:
         state.showingUninstallConfirm = true

@@ -133,6 +133,7 @@ struct AppFeatureTests {
       $0.serviceInstaller.install = { installCalls.withValue { $0 += 1 } }
       $0.serviceInstaller.isInstalled = { true }
       $0.serviceInstaller.requiresApproval = { false }
+      $0.serviceInstaller.isOnSystemPath = { false }
     }
 
     await store.send(.installTapped) {
@@ -181,6 +182,57 @@ struct AppFeatureTests {
   }
 
   @Test
+  func installStatusRefreshedUpdatesOnSystemPath() async {
+    let store = TestStore(initialState: AppFeature.State()) {
+      AppFeature()
+    }
+
+    await store.send(
+      .installStatusRefreshed(isInstalled: true, requiresApproval: false, isOnSystemPath: true)
+    ) {
+      $0.isInstalled = true
+      $0.requiresApproval = false
+      $0.isOnSystemPath = true
+    }
+  }
+
+  @Test
+  func installSystemPathDelegateCallsInstallerAndRefreshes() async {
+    let installCalls = LockIsolated(0)
+
+    let store = TestStore(initialState: AppFeature.State(isInstalled: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.serviceInstaller.installSystemPath = { installCalls.withValue { $0 += 1 } }
+      $0.serviceInstaller.isOnSystemPath = { true }
+    }
+
+    await store.send(.settings(.delegate(.installSystemPath))) {
+      $0.isOnSystemPath = true
+    }
+
+    #expect(installCalls.value == 1)
+  }
+
+  @Test
+  func uninstallSystemPathDelegateCallsInstallerAndRefreshes() async {
+    let uninstallCalls = LockIsolated(0)
+
+    let store = TestStore(initialState: AppFeature.State(isInstalled: true, isOnSystemPath: true)) {
+      AppFeature()
+    } withDependencies: {
+      $0.serviceInstaller.uninstallSystemPath = { uninstallCalls.withValue { $0 += 1 } }
+      $0.serviceInstaller.isOnSystemPath = { false }
+    }
+
+    await store.send(.settings(.delegate(.uninstallSystemPath))) {
+      $0.isOnSystemPath = false
+    }
+
+    #expect(uninstallCalls.value == 1)
+  }
+
+  @Test
   func settingsInstallDelegateEquivalentToInstallTapped() async {
     let clock = TestClock()
     let installCalls = LockIsolated(0)
@@ -195,6 +247,7 @@ struct AppFeatureTests {
       $0.serviceInstaller.install = { installCalls.withValue { $0 += 1 } }
       $0.serviceInstaller.isInstalled = { true }
       $0.serviceInstaller.requiresApproval = { false }
+      $0.serviceInstaller.isOnSystemPath = { false }
     }
 
     await store.send(.settings(.delegate(.install))) {

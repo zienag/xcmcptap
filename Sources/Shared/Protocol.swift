@@ -4,6 +4,20 @@ import struct Foundation.UUID
 public enum MCPTap {
   public static let serviceName = "alfred.xcmcptap"
   public static let statusServiceName = "alfred.xcmcptap.status"
+  public static let helperServiceName = "alfred.xcmcptap.helper"
+}
+
+// MARK: - Privileged Helper Protocol
+
+public enum HelperRequest: Codable, Equatable, Sendable {
+  case installSymlink(sourcePath: String)
+  case removeSymlink
+  case status
+}
+
+public enum HelperResponse: Codable, Equatable, Sendable {
+  case success
+  case failure(reason: String)
 }
 
 public struct MCPLine: Codable, Sendable {
