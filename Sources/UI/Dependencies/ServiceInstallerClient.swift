@@ -13,7 +13,6 @@ public struct ServiceInstallerClient: Sendable {
   public var clientPath: @Sendable () -> String = { "" }
   public var systemPath: @Sendable () -> String = { "" }
   public var plistPath: @Sendable () -> String = { "" }
-  public var logPath: @Sendable () -> String = { "" }
 }
 
 extension ServiceInstallerClient: DependencyKey {
@@ -29,7 +28,6 @@ extension ServiceInstallerClient: DependencyKey {
     clientPath: { ServiceInstaller.clientLinkPath },
     systemPath: { ServiceInstaller.systemLinkPath },
     plistPath: { ServiceInstaller.plistPath },
-    logPath: { ServiceInstaller.logPath },
   )
 
   public static let testValue = ServiceInstallerClient()

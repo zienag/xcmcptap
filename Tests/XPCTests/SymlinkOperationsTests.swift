@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Testing
 import XcodeMCPTapHelper
 import XcodeMCPTapShared
@@ -85,5 +86,21 @@ struct SymlinkOperationsTests {
       return
     }
     #expect(FileManager.default.fileExists(atPath: dest))
+  }
+
+  @Test
+  func installEmitsLogUnderHelperSubsystem() async throws {
+    let cutoff = Date()
+    let dest = workDir.appendingPathComponent("link").path
+    _ = SymlinkOperations.install(source: source.path, destination: dest)
+
+    try await Task.sleep(for: .milliseconds(50))
+
+    let store = try OSLogStore(scope: .currentProcessIdentifier)
+    let entries = try store.getEntries(at: store.position(date: cutoff))
+      .compactMap { $0 as? OSLogEntryLog }
+      .filter { $0.subsystem == MCPTap.helperServiceName && $0.category == "symlink" }
+
+    #expect(!entries.isEmpty, "Expected a symlink-category log entry; got \(entries.map(\.composedMessage))")
   }
 }

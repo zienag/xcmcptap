@@ -1,27 +1,16 @@
-import Darwin
-import class Foundation.FileManager
-import func Foundation.NSHomeDirectory
+import Darwin.C
+import Dispatch
 import struct Foundation.UUID
+import os
 import XcodeMCPTapShared
 import XPC
 
-public enum ServiceMain {
-  /// Redirects stdout/stderr to a per-user log file. The bundled LaunchAgent
-  /// plist can't express `$HOME`-relative paths, so we do the redirect here
-  /// instead of via `StandardOutPath`/`StandardErrorPath`.
-  private static func redirectLogsToHomeLogDir() {
-    let logDir = NSHomeDirectory() + "/Library/Logs"
-    try? FileManager.default.createDirectory(atPath: logDir, withIntermediateDirectories: true)
-    let logPath = logDir + "/\(MCPTap.serviceName).log"
-    _ = logPath.withCString { freopen($0, "a", stdout) }
-    _ = logPath.withCString { freopen($0, "a", stderr) }
-    setbuf(stdout, nil)
-    setbuf(stderr, nil)
-  }
+private let lifecycleLog = Logger(subsystem: MCPTap.serviceName, category: "service.lifecycle")
+private let xpcLog = Logger(subsystem: MCPTap.serviceName, category: "service.xpc")
 
+public enum ServiceMain {
   public static func run() {
-    redirectLogsToHomeLogDir()
-    fputs("[service] starting\n", stderr)
+    lifecycleLog.notice("starting")
 
     let registry = ConnectionRegistry()
     let statusEndpoint = StatusEndpoint(registry: registry)
@@ -52,11 +41,11 @@ public enum ServiceMain {
     // recovery path.
     let xcodeMonitor = XcodeLifecycleMonitor(
       onTerminated: {
-        fputs("[service] Xcode terminated — marking bridge unavailable\n", stderr)
+        lifecycleLog.notice("Xcode terminated — marking bridge unavailable")
         Task { await router.markBridgeUnavailable(reason: "Xcode not running") }
       },
       onLaunched: {
-        fputs("[service] Xcode launched — bridge will respawn on next request\n", stderr)
+        lifecycleLog.notice("Xcode launched — bridge will respawn on next request")
       },
     )
 
@@ -65,25 +54,25 @@ public enum ServiceMain {
     let listener: XPCListener
     do {
       listener = try XPCListener(service: MCPTap.serviceName) { request in
-        fputs("[service] new XPC connection\n", stderr)
+        xpcLog.info("new XPC connection")
         let connectionID = UUID()
 
         let (decision, session) = request.accept(
           incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
-            fputs("[service] received from client: \(message.content.prefix(100))\n", stderr)
+            xpcLog.debug("received from client: \(message.content.prefix(100), privacy: .private)")
             registry.recordMessage(id: connectionID)
             router.handleClientMessage(from: connectionID, message.content)
             return nil
           },
           cancellationHandler: { _ in
-            fputs("[service] connection cancelled\n", stderr)
+            xpcLog.info("connection cancelled")
             router.unregisterClient(id: connectionID)
             registry.unregister(id: connectionID)
           },
         )
 
         _ = router.registerClient(id: connectionID) { line in
-          fputs("[service] sending to client: \(line.prefix(100))\n", stderr)
+          xpcLog.debug("sending to client: \(line.prefix(100), privacy: .private)")
           try? session.send(MCPLine(line))
         }
 
@@ -92,7 +81,7 @@ public enum ServiceMain {
         return decision
       }
     } catch {
-      fputs("[service] failed to activate MCP listener: \(error)\n", stderr)
+      lifecycleLog.fault("failed to activate MCP listener: \(String(describing: error), privacy: .public)")
       exit(EX_CONFIG)
     }
 
@@ -100,10 +89,10 @@ public enum ServiceMain {
     do {
       statusListener = try statusEndpoint.start()
     } catch {
-      fputs("[service] failed to activate status listener: \(error)\n", stderr)
+      lifecycleLog.fault("failed to activate status listener: \(String(describing: error), privacy: .public)")
       exit(EX_CONFIG)
     }
-    fputs("[service] listeners ready\n", stderr)
+    lifecycleLog.notice("listeners ready")
 
     withExtendedLifetime((listener, statusListener, router, xcodeMonitor)) {
       dispatchMain()

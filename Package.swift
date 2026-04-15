@@ -57,6 +57,7 @@ let package = Package(
     .testTarget(
       name: "XPCTests",
       dependencies: [
+        "XcodeMCPTapClient",
         "XcodeMCPTapService",
         "XcodeMCPTapShared",
         "XcodeMCPTapHelper",

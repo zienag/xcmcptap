@@ -4,8 +4,11 @@ import class Foundation.JSONDecoder
 import class Foundation.JSONEncoder
 import class Foundation.NSDecimalNumber
 import struct Foundation.UUID
+import os
 import Synchronization
 import XcodeMCPTapShared
+
+private let log = Logger(subsystem: MCPTap.serviceName, category: "router")
 
 public final class MCPRouter: Sendable {
   public typealias Sleeper = @Sendable (Duration) async -> Void
@@ -180,6 +183,7 @@ public final class MCPRouter: Sendable {
     perform(action)
     notify?(.booting)
     if shouldRespawn {
+      log.notice("bridge respawn triggered by client request")
       Task { await self.boot() }
     }
   }
@@ -299,16 +303,17 @@ public final class MCPRouter: Sendable {
       // between two buffered messages from the same client is preserved
       // — e.g. a cancel following its tools/call sees the just-registered
       // mapping.
-      let (actions, notify) = state
-        .withLock { s -> ([Action], (@Sendable (BridgeStatus) -> Void)?) in
+      let (actions, notify, flushedCount) = state
+        .withLock { s -> ([Action], (@Sendable (BridgeStatus) -> Void)?, Int) in
           s.bridge = .ready(cachedInit: initResponse)
           let flushed = s.pending
           s.pending = []
           let acts = flushed.map { entry in
             Self.prepareOutgoing(from: entry.client, content: entry.content, state: &s)
           }
-          return (acts, s.onBridgeStateChanged)
+          return (acts, s.onBridgeStateChanged, flushed.count)
         }
+      log.notice("bridge ready (flushed \(flushedCount, privacy: .public) buffered)")
       for action in actions {
         perform(action)
       }
@@ -407,6 +412,9 @@ public final class MCPRouter: Sendable {
         }
         return (out, old, s.onBridgeStateChanged)
       }
+    if oldConnection != nil {
+      log.error("bridge failed: \(reason, privacy: .public)")
+    }
     for action in actions {
       perform(action)
     }

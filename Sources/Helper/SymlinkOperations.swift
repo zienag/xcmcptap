@@ -1,7 +1,10 @@
 import struct Foundation.FileAttributeKey
 import struct Foundation.FileAttributeType
 import class Foundation.FileManager
+import os
 import XcodeMCPTapShared
+
+private let log = Logger(subsystem: MCPTap.helperServiceName, category: "symlink")
 
 public enum SymlinkOperations {
   /// Creates a symlink at `destination` pointing to `source`. If `destination`
@@ -15,18 +18,25 @@ public enum SymlinkOperations {
         do {
           try fm.removeItem(atPath: destination)
         } catch {
-          return .failure(reason: "removing old symlink: \(error.localizedDescription)")
+          let reason = "removing old symlink: \(error.localizedDescription)"
+          log.error("install failed: \(reason, privacy: .public)")
+          return .failure(reason: reason)
         }
       } else {
-        return .failure(reason: "refusing to overwrite non-symlink at \(destination)")
+        let reason = "refusing to overwrite non-symlink at \(destination)"
+        log.error("install failed: \(reason, privacy: .public)")
+        return .failure(reason: reason)
       }
     }
 
     do {
       try fm.createSymbolicLink(atPath: destination, withDestinationPath: source)
+      log.notice("installed symlink \(destination, privacy: .public) → \(source, privacy: .public)")
       return .success
     } catch {
-      return .failure(reason: "creating symlink: \(error.localizedDescription)")
+      let reason = "creating symlink: \(error.localizedDescription)"
+      log.error("install failed: \(reason, privacy: .public)")
+      return .failure(reason: reason)
     }
   }
 
@@ -37,18 +47,24 @@ public enum SymlinkOperations {
     let fm = FileManager.default
 
     guard let attrs = try? fm.attributesOfItem(atPath: destination) else {
+      log.notice("remove no-op: \(destination, privacy: .public) does not exist")
       return .success
     }
 
     guard attrs[.type] as? FileAttributeType == .typeSymbolicLink else {
-      return .failure(reason: "refusing to remove non-symlink at \(destination)")
+      let reason = "refusing to remove non-symlink at \(destination)"
+      log.error("remove failed: \(reason, privacy: .public)")
+      return .failure(reason: reason)
     }
 
     do {
       try fm.removeItem(atPath: destination)
+      log.notice("removed symlink \(destination, privacy: .public)")
       return .success
     } catch {
-      return .failure(reason: "removing symlink: \(error.localizedDescription)")
+      let reason = "removing symlink: \(error.localizedDescription)"
+      log.error("remove failed: \(reason, privacy: .public)")
+      return .failure(reason: reason)
     }
   }
 }

@@ -6,9 +6,12 @@ import class Foundation.FileManager
 import func Foundation.NSHomeDirectory
 import class Foundation.Process
 import struct Foundation.URL
+import os
 import ServiceManagement
 import XcodeMCPTapShared
 import XPC
+
+private let log = Logger(subsystem: MCPTap.serviceName, category: "install")
 
 public enum ServiceInstaller {
   private static let uid = getuid()
@@ -19,7 +22,6 @@ public enum ServiceInstaller {
   public static let clientLinkPath = NSHomeDirectory() + "/.local/bin/xcmcptap"
   public static let systemLinkPath = "/usr/local/bin/xcmcptap"
   public static let systemLinkName = "xcmcptap"
-  public static let logPath = NSHomeDirectory() + "/Library/Logs/\(MCPTap.serviceName).log"
 
   /// Path to the bundled plist we register with SMAppService. Points inside the running .app bundle.
   public static var plistPath: String {
@@ -61,7 +63,7 @@ public enum ServiceInstaller {
 
   public static func install() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
-      fputs("Run from the .app bundle to install.\n", stderr)
+      log.error("refusing to install: not running from a .app bundle")
       return
     }
 
@@ -74,7 +76,7 @@ public enum ServiceInstaller {
     do {
       try agentService.register()
     } catch {
-      fputs("SMAppService register failed: \(error)\n", stderr)
+      log.error("SMAppService register failed: \(String(describing: error), privacy: .public)")
       return
     }
 
@@ -82,6 +84,7 @@ public enum ServiceInstaller {
     try? FileManager.default.createDirectory(atPath: linkDir, withIntermediateDirectories: true)
     try? FileManager.default.removeItem(atPath: clientLinkPath)
     try? FileManager.default.createSymbolicLink(atPath: clientLinkPath, withDestinationPath: clientPath)
+    log.notice("install complete")
   }
 
   public static func uninstall() {
@@ -95,18 +98,19 @@ public enum ServiceInstaller {
     do {
       try agentService.unregister()
     } catch {
-      fputs("SMAppService unregister failed: \(error)\n", stderr)
+      log.error("SMAppService unregister failed: \(String(describing: error), privacy: .public)")
     }
 
     cleanUpLegacyAgent()
     try? FileManager.default.removeItem(atPath: clientLinkPath)
+    log.notice("uninstall complete")
   }
 
   /// Installs a symlink at `/usr/local/bin/xcmcptap`. Registers a privileged
   /// helper daemon on first use — triggers one admin prompt.
   public static func installSystemSymlink() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
-      fputs("Run from the .app bundle to install system symlink.\n", stderr)
+      log.error("refusing to install system symlink: not running from a .app bundle")
       return
     }
     let clientPath = Bundle.main.executableURL!
@@ -127,7 +131,7 @@ public enum ServiceInstaller {
     do {
       try helperDaemonService.unregister()
     } catch {
-      fputs("SMAppService helper-daemon unregister failed: \(error)\n", stderr)
+      log.error("SMAppService helper-daemon unregister failed: \(String(describing: error), privacy: .public)")
     }
   }
 
@@ -142,15 +146,15 @@ public enum ServiceInstaller {
       do {
         let response = try await operation(installer)
         if case let .failure(reason) = response {
-          fputs("helper returned failure: \(reason)\n", stderr)
+          log.error("helper returned failure: \(reason, privacy: .public)")
         }
       } catch SystemSymlinkInstallerError.requiresApproval {
         // Daemon is registered but user has to flip the switch in System Settings.
         // Open the pane so they know where to go.
-        fputs("helper daemon requires approval in Login Items\n", stderr)
+        log.notice("helper daemon requires approval in Login Items")
         SMAppService.openSystemSettingsLoginItems()
       } catch {
-        fputs("helper flow error: \(error)\n", stderr)
+        log.error("helper flow error: \(String(describing: error), privacy: .public)")
       }
     }
 

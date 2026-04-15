@@ -1,7 +1,11 @@
 import Darwin.C
+import Dispatch
 import class Foundation.ProcessInfo
+import os
 import XcodeMCPTapShared
 import XPC
+
+private let log = Logger(subsystem: MCPTap.helperServiceName, category: "xpc")
 
 public enum HelperMain {
   public static func run() {
@@ -10,9 +14,8 @@ public enum HelperMain {
     let destination = env["HELPER_DESTINATION"] ?? "/usr/local/bin/xcmcptap"
 
     let allowAnyPeer = env["HELPER_ALLOW_ANY_PEER"] == "1"
-    fputs(
-      "[helper] listening on \(machService), destination=\(destination), allowAnyPeer=\(allowAnyPeer)\n",
-      stderr,
+    log.notice(
+      "listening on \(machService, privacy: .public), destination=\(destination, privacy: .public), allowAnyPeer=\(allowAnyPeer, privacy: .public)",
     )
 
     let handler = HelperHandler(destination: destination)
@@ -35,7 +38,7 @@ public enum HelperMain {
         dispatchMain()
       }
     } catch {
-      fputs("[helper] failed to start listener: \(error)\n", stderr)
+      log.fault("failed to start listener: \(String(describing: error), privacy: .public)")
       exit(1)
     }
   }

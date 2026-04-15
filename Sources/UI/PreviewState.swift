@@ -11,13 +11,11 @@ public extension AppFeature.State {
   private static let previewPlistPath =
     "/Applications/Xcode MCP Tap.app/Contents/Library/LaunchAgents/alfred.xcmcptap.plist"
   private static let previewClientPath = "/Users/preview/.local/bin/xcmcptap"
-  private static let previewLogPath = "/Users/preview/Library/Logs/alfred.xcmcptap.log"
 
   private static func withPreviewPaths(_ state: AppFeature.State) -> AppFeature.State {
     var state = state
     state.plistPath = previewPlistPath
     state.clientPath = previewClientPath
-    state.logPath = previewLogPath
     return state
   }
 

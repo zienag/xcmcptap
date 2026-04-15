@@ -13,7 +13,6 @@ public struct AppFeature {
     public var isInstalled: Bool = false
     public var isOnSystemPath: Bool = false
     public var isServiceRunning: Bool = false
-    public var logPath: String = ServiceInstaller.logPath
     public var now: Date = .distantPast
     public var plistPath: String = ServiceInstaller.plistPath
     public var requiresApproval: Bool = false

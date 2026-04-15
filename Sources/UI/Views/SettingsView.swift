@@ -93,8 +93,6 @@ public struct SettingsView: View {
         pathRow(label: "Client", path: store.clientPath)
         Divider().gridCellUnsizedAxes(.horizontal)
         pathRow(label: "Launch agent", path: store.plistPath)
-        Divider().gridCellUnsizedAxes(.horizontal)
-        pathRow(label: "Log", path: store.logPath)
       }
       .padding(Spacing.m)
       .cardSurface(radius: Radius.medium)
