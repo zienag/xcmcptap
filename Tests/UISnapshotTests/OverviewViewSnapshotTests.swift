@@ -17,7 +17,7 @@ struct OverviewViewSnapshotTests {
       ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -28,7 +28,7 @@ struct OverviewViewSnapshotTests {
       ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -40,7 +40,7 @@ struct OverviewViewSnapshotTests {
       .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -51,7 +51,7 @@ struct OverviewViewSnapshotTests {
       ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -62,7 +62,7 @@ struct OverviewViewSnapshotTests {
       ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -74,6 +74,6 @@ struct OverviewViewSnapshotTests {
       .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 }

@@ -14,7 +14,7 @@ struct SidebarFooterSnapshotTests {
       rootView: SidebarFooter(isServiceRunning: true, isInstalled: true),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -23,7 +23,7 @@ struct SidebarFooterSnapshotTests {
       rootView: SidebarFooter(isServiceRunning: false, isInstalled: true),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -32,7 +32,7 @@ struct SidebarFooterSnapshotTests {
       rootView: SidebarFooter(isServiceRunning: false, isInstalled: false),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -42,6 +42,6 @@ struct SidebarFooterSnapshotTests {
         .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 }

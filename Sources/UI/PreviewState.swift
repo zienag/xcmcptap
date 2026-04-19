@@ -6,10 +6,12 @@ public extension AppFeature.State {
   /// Fixed reference time for deterministic previews and snapshot tests.
   static let previewNow = Date(timeIntervalSince1970: 1_700_000_000)
 
-  /// Stable path values for deterministic snapshot output. Override the
-  /// dependency-derived defaults, which vary by test runner / bundle location.
+  /// Stable path values for deterministic snapshot output. Paths point at
+  /// guaranteed-absent locations so `FileManager.fileExists(atPath:)` is
+  /// always `false`, regardless of whether the host dev machine happens to
+  /// have the real app installed.
   private static let previewPlistPath =
-    "/Applications/Xcode MCP Tap.app/Contents/Library/LaunchAgents/alfred.xcmcptap.plist"
+    "/Applications/XcodeMCPTapPreview.app/Contents/Library/LaunchAgents/alfred.xcmcptap.plist"
   private static let previewClientPath = "/Users/preview/.local/bin/xcmcptap"
 
   private static func withPreviewPaths(_ state: AppFeature.State) -> AppFeature.State {

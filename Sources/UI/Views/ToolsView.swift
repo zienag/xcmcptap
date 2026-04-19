@@ -44,7 +44,7 @@ public struct ToolsView: View {
               .lineLimit(1)
               .minimumScaleFactor(0.85)
             Spacer()
-            Text("\(tools.count)")
+            Text(verbatim: "\(tools.count)")
               .font(.caption.monospacedDigit())
               .foregroundStyle(.secondary)
           }

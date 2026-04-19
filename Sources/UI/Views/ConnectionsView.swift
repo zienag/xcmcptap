@@ -65,7 +65,7 @@ private struct ConnectionRow: View {
           in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous),
         )
 
-      Text("PID \(connection.bridgePID)")
+      Text(verbatim: "PID \(connection.bridgePID)")
         .font(.system(.callout, design: .monospaced))
         .lineLimit(1)
         .gridColumnAlignment(.leading)
@@ -86,7 +86,7 @@ private struct ConnectionRow: View {
 
       HStack(spacing: Spacing.xs) {
         Spacer(minLength: 0)
-        Text("\(connection.messagesRouted)")
+        Text(verbatim: "\(connection.messagesRouted)")
           .font(.system(.callout, design: .rounded).weight(.semibold))
           .monospacedDigit()
         Text("msg")

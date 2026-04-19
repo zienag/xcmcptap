@@ -20,5 +20,23 @@ jobs:
       run: sudo xcode-select -s /Applications/Xcode_26.3.app
     - name: Build
       run: swift build -v
+    - name: Match developer accessibility defaults
+      # Apple's hosted macOS runners ship with Reduce Transparency and Reduce
+      # Motion enabled, which makes SwiftUI materials render opaque instead
+      # of vibrant — snapshots recorded on a normal developer Mac don't
+      # match. Flip these off before the tests fork.
+      run: |
+        defaults write com.apple.universalaccess reduceTransparency -int 0
+        defaults write com.apple.universalaccess reduceMotion -int 0
     - name: Run tests
+      env:
+        SNAPSHOT_ARTIFACTS: ${{ runner.temp }}/snapshot-failures
       run: swift test -v
+    - name: Upload failed snapshots
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: failed-snapshots
+        path: ${{ runner.temp }}/snapshot-failures
+        if-no-files-found: warn
+        retention-days: 14

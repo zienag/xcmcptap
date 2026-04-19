@@ -17,7 +17,7 @@ struct ConnectionsViewSnapshotTests {
       ),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -28,7 +28,7 @@ struct ConnectionsViewSnapshotTests {
       rootView: ConnectionsView(store: Store(initialState: state) { AppFeature() }),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
@@ -40,6 +40,6 @@ struct ConnectionsViewSnapshotTests {
       .environment(\.layoutDirection, .rightToLeft),
     )
     controller.view.frame = CGRect(origin: .zero, size: Self.size)
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    assertSnapshot(of: controller, size: Self.size)
   }
 }

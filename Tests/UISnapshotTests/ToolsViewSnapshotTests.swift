@@ -12,8 +12,8 @@ struct ToolsViewSnapshotTests {
   @Test
   func populated() {
     let tools = AppFeature.State.sampleTools
-    let controller = hostedInWindow(
-      ToolsView(
+    let controller = NSHostingController(
+      rootView: ToolsView(
         store: Store(
           initialState: ToolsFeature.State(
             selectedToolID: tools.first?.id,
@@ -21,24 +21,24 @@ struct ToolsViewSnapshotTests {
           ),
         ) { ToolsFeature() },
       ),
-      size: Self.size,
     )
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
   func empty() {
-    let controller = hostedInWindow(
-      ToolsView(store: Store(initialState: ToolsFeature.State()) { ToolsFeature() }),
-      size: Self.size,
+    let controller = NSHostingController(
+      rootView: ToolsView(store: Store(initialState: ToolsFeature.State()) { ToolsFeature() }),
     )
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
   func searchMatch() {
-    let controller = hostedInWindow(
-      ToolsView(
+    let controller = NSHostingController(
+      rootView: ToolsView(
         store: Store(
           initialState: ToolsFeature.State(
             searchText: "build",
@@ -46,15 +46,15 @@ struct ToolsViewSnapshotTests {
           ),
         ) { ToolsFeature() },
       ),
-      size: Self.size,
     )
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
   func searchNoMatch() {
-    let controller = hostedInWindow(
-      ToolsView(
+    let controller = NSHostingController(
+      rootView: ToolsView(
         store: Store(
           initialState: ToolsFeature.State(
             searchText: "zzz",
@@ -62,16 +62,16 @@ struct ToolsViewSnapshotTests {
           ),
         ) { ToolsFeature() },
       ),
-      size: Self.size,
     )
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, size: Self.size)
   }
 
   @Test
   func populatedRTL() {
     let tools = AppFeature.State.sampleTools
-    let controller = hostedInWindow(
-      ToolsView(
+    let controller = NSHostingController(
+      rootView: ToolsView(
         store: Store(
           initialState: ToolsFeature.State(
             selectedToolID: tools.first?.id,
@@ -80,8 +80,8 @@ struct ToolsViewSnapshotTests {
         ) { ToolsFeature() },
       )
       .environment(\.layoutDirection, .rightToLeft),
-      size: Self.size,
     )
-    assertSnapshot(of: controller, as: .image(size: Self.size))
+    controller.view.frame = CGRect(origin: .zero, size: Self.size)
+    assertSnapshot(of: controller, size: Self.size)
   }
 }
