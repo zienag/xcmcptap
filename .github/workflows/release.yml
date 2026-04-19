@@ -21,10 +21,9 @@ env:
 
 jobs:
   release:
-    # macos-15 is the newest GitHub-hosted runner at time of writing.
-    # Project deployment target is macOS 26.0 — bump this image when
-    # GitHub ships Xcode 26 on a newer runner.
-    runs-on: macos-15
+    # Project deployment target is macOS 26.0 and requires Xcode 26.3
+    # (Swift 6.2). macos-26 is the runner that ships it.
+    runs-on: macos-26
     defaults:
       run:
         shell: bash
@@ -49,14 +48,9 @@ jobs:
           echo "short=$SHORT"        >> "$GITHUB_OUTPUT"
           echo "build=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
-      - name: Select latest Xcode
+      - name: Select Xcode 26.3
         run: |
-          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
-          if [ -z "$LATEST" ]; then
-            LATEST="/Applications/Xcode.app"
-          fi
-          echo "Using $LATEST"
-          sudo xcode-select -s "$LATEST"
+          sudo xcode-select -s /Applications/Xcode_26.3.app
           xcodebuild -version
 
       - name: Install xcodegen
