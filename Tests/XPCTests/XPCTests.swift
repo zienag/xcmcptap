@@ -3,6 +3,10 @@ import Testing
 import XcodeMCPTapShared
 import XPC
 
+struct MissingTestBinary: Error, CustomStringConvertible {
+  var description: String
+}
+
 @Suite(.serialized)
 struct XPCIntegrationTests {
   static let serviceName = "alfred.xcmcptap.test-echo"
@@ -84,8 +88,8 @@ struct XPCIntegrationTests {
     let logPath = NSHomeDirectory() + "/Library/Logs/\(serviceName).log"
 
     guard FileManager.default.fileExists(atPath: echoServerPath) else {
-      fatalError(
-        "xpc-test-echo-server not found at \(echoServerPath). Run 'swift build' first.",
+      throw MissingTestBinary(
+        description: "xpc-test-echo-server not found at \(echoServerPath). Run 'swift build' first.",
       )
     }
 

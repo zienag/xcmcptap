@@ -33,9 +33,9 @@ private final actor StatusConnection {
   nonisolated let events: AsyncStream<StatusEvent>
 
   init() {
-    var c: AsyncStream<StatusEvent>.Continuation!
-    events = AsyncStream { c = $0 }
-    continuation = c
+    let stream = AsyncStream<StatusEvent>.makeStream()
+    events = stream.stream
+    continuation = stream.continuation
   }
 
   func fetch() async throws -> StatusResponse {

@@ -119,19 +119,26 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP"
           spctl --assess --type execute --verbose "$APP" || true
 
+      - name: Write App Store Connect API key
+        env:
+          KEY_B64: ${{ secrets.APP_STORE_CONNECT_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          echo -n "$KEY_B64" | base64 --decode > "$RUNNER_TEMP/asc/key.p8"
+
       - name: Notarize
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           APP=".build/Release/$APP_NAME.app"
           ZIP=".build/$APP_NAME.zip"
           ditto -c -k --keepParent "$APP" "$ZIP"
 
           xcrun notarytool submit "$ZIP" \
-            --apple-id "$APPLE_ID" \
-            --team-id "$TEAM_ID" \
-            --password "$APPLE_ID_PASSWORD" \
+            --key "$RUNNER_TEMP/asc/key.p8" \
+            --key-id "$KEY_ID" \
+            --issuer "$ISSUER" \
             --wait
 
           xcrun stapler staple "$APP"
@@ -140,6 +147,9 @@ jobs:
 
       - name: Build DMG
         id: dmg
+        env:
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           APP=".build/Release/$APP_NAME.app"
           DMG_NAME="XcodeMCPTap-${{ steps.version.outputs.short }}"
@@ -163,9 +173,9 @@ jobs:
 
           # Notarize & staple the DMG as well (so right-click-open works offline)
           xcrun notarytool submit "$DMG_FINAL" \
-            --apple-id "${{ secrets.APPLE_ID }}" \
-            --team-id "$TEAM_ID" \
-            --password "${{ secrets.APPLE_ID_PASSWORD }}" \
+            --key "$RUNNER_TEMP/asc/key.p8" \
+            --key-id "$KEY_ID" \
+            --issuer "$ISSUER" \
             --wait
           xcrun stapler staple "$DMG_FINAL"
 
@@ -189,10 +199,11 @@ jobs:
           name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
           files: ${{ steps.dmg.outputs.path }}
 
       - name: Update Homebrew tap
+        if: ${{ !contains(steps.version.outputs.tag, '-') }}
         env:
           TAP_TOKEN: ${{ secrets.TAP_REPO_TOKEN }}
           DMG_PATH: ${{ steps.dmg.outputs.path }}
@@ -235,7 +246,8 @@ jobs:
             git push
           fi
 
-      - name: Clean up keychain
+      - name: Clean up secrets on disk
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/build.keychain" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/asc"

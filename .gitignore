@@ -4,3 +4,5 @@ XcodeMCPTap.xcodeproj/
 .DS_Store
 .vscode/
 .claude/*.lock
+.claude.local.temp/
+*.profraw

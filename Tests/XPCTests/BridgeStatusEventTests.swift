@@ -1,4 +1,3 @@
-import class Foundation.NSLock
 import Synchronization
 import Testing
 import XcodeMCPTapService
@@ -105,20 +104,15 @@ struct BridgeStatusEventTests {
 }
 
 /// Thread-safe recorder for BridgeStatus transitions with polling helpers.
-final class StatusRecorder: @unchecked Sendable {
-  private let lock = NSLock()
-  private var events: [BridgeStatus] = []
+final class StatusRecorder: Sendable {
+  private let events = Mutex<[BridgeStatus]>([])
 
   func append(_ status: BridgeStatus) {
-    lock.lock()
-    events.append(status)
-    lock.unlock()
+    events.withLock { $0.append(status) }
   }
 
   func all() -> [BridgeStatus] {
-    lock.lock()
-    defer { lock.unlock() }
-    return events
+    events.withLock { $0 }
   }
 
   func waitFor(

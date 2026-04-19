@@ -92,7 +92,9 @@ struct HelperEndToEndTests {
     let logPath = NSHomeDirectory() + "/Library/Logs/\(serviceName).log"
 
     guard FileManager.default.fileExists(atPath: helperPath) else {
-      fatalError("xcmcptap-helper not found at \(helperPath). Run 'swift build' first.")
+      throw MissingTestBinary(
+        description: "xcmcptap-helper not found at \(helperPath). Run 'swift build' first.",
+      )
     }
 
     let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(serviceName).plist"

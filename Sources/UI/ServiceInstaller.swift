@@ -67,7 +67,12 @@ public enum ServiceInstaller {
       return
     }
 
-    let clientPath = Bundle.main.executableURL!
+    guard let executableURL = Bundle.main.executableURL else {
+      log.error("refusing to install: main bundle has no executable URL")
+      return
+    }
+
+    let clientPath = executableURL
       .deletingLastPathComponent()
       .appendingPathComponent("xcmcptap").path
 
@@ -113,7 +118,11 @@ public enum ServiceInstaller {
       log.error("refusing to install system symlink: not running from a .app bundle")
       return
     }
-    let clientPath = Bundle.main.executableURL!
+    guard let executableURL = Bundle.main.executableURL else {
+      log.error("refusing to install system symlink: main bundle has no executable URL")
+      return
+    }
+    let clientPath = executableURL
       .deletingLastPathComponent()
       .appendingPathComponent("xcmcptap").path
 

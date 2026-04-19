@@ -12,7 +12,7 @@ import Foundation
 /// Xcode?" matcher closure are all injectable so tests can drive the
 /// observer with fake notifications on a private center — no need to
 /// poke real NSWorkspace to exercise the callback.
-public final class XcodeLifecycleMonitor: @unchecked Sendable {
+public final class XcodeLifecycleMonitor {
   public static let xcodeBundleID = "com.apple.dt.Xcode"
 
   /// Production matcher: unpacks `NSRunningApplication` from the
@@ -26,8 +26,8 @@ public final class XcodeLifecycleMonitor: @unchecked Sendable {
   }
 
   private let center: NotificationCenter
-  private var terminateObserver: NSObjectProtocol?
-  private var launchObserver: NSObjectProtocol?
+  private let terminateObserver: any NSObjectProtocol
+  private let launchObserver: any NSObjectProtocol
 
   /// Creates and installs observers. Keep the returned instance alive
   /// for the lifetime of the service — releasing it removes the
@@ -67,11 +67,7 @@ public final class XcodeLifecycleMonitor: @unchecked Sendable {
   }
 
   deinit {
-    if let terminateObserver {
-      center.removeObserver(terminateObserver)
-    }
-    if let launchObserver {
-      center.removeObserver(launchObserver)
-    }
+    center.removeObserver(terminateObserver)
+    center.removeObserver(launchObserver)
   }
 }

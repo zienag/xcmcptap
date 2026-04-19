@@ -1,8 +1,8 @@
 import struct Foundation.Data
 import struct Foundation.Decimal
 import class Foundation.JSONDecoder
-import class Foundation.NSLock
 import struct Foundation.UUID
+import Synchronization
 import Testing
 import XcodeMCPTapService
 import XcodeMCPTapShared
@@ -81,13 +81,12 @@ struct BridgeRecoveryTests {
 }
 
 /// Thread-safe incrementing counter for test factories.
-final class AttemptCounter: @unchecked Sendable {
-  private let lock = NSLock()
-  private var value = 0
+final class AttemptCounter: Sendable {
+  private let value = Mutex(0)
   func next() -> Int {
-    lock.lock()
-    defer { lock.unlock() }
-    value += 1
-    return value
+    value.withLock {
+      $0 += 1
+      return $0
+    }
   }
 }

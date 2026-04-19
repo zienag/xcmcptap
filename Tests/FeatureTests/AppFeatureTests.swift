@@ -1,13 +1,12 @@
 import ComposableArchitecture
 import struct Foundation.Date
-import struct Foundation.UUID
 import Testing
 import XcodeMCPTapShared
 import XcodeMCPTapUI
 
 private let testNow = Date(timeIntervalSince1970: 1_700_000_000)
 private let testConnection = ConnectionInfo(
-  id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
+  id: AppFeature.State.previewUUID(0x11),
   connectedAt: testNow.addingTimeInterval(-10),
   messagesRouted: 5,
   lastActivityAt: testNow.addingTimeInterval(-1),

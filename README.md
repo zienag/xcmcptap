@@ -47,7 +47,8 @@ new cask version + SHA256.
 |---|---|
 | `DEVELOPER_ID_CERT_P12` | Base64-encoded `.p12` of the Developer ID Application cert |
 | `DEVELOPER_ID_CERT_PASSWORD` | Password for the `.p12` |
-| `APPLE_ID` | Apple ID email used for notarization |
-| `APPLE_ID_PASSWORD` | App-specific password (not iCloud password) |
+| `APP_STORE_CONNECT_KEY_ID` | 10-char App Store Connect API key ID |
+| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect team issuer UUID |
+| `APP_STORE_CONNECT_KEY` | Base64-encoded `.p8` private key |
 | `KEYCHAIN_PASSWORD` | Arbitrary password for the runner's temp keychain |
 | `TAP_REPO_TOKEN` | GitHub PAT with `contents:write` on `zienag/homebrew-tap` |

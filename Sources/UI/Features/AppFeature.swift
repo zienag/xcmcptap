@@ -78,7 +78,7 @@ public struct AppFeature {
       case .booting:
         "Launching /usr/bin/xcrun mcpbridge and waiting for the MCP handshake to complete."
       case .ready:
-        "Connected to Xcode. Tool calls forwarded through a single shared mcpbridge process."
+        "Connected to Xcode."
       case let .failed(reason):
         reason
       }

@@ -56,7 +56,7 @@ public struct OverviewView: View {
       VStack(alignment: .leading, spacing: Spacing.hairline) {
         Text("Approval needed")
           .font(.headline)
-        Text("macOS is holding the background service. Enable Xcode MCP Tap under Login Items to finish installing.")
+        Text("Turn on Xcode MCP Tap in Login Items to finish installing.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
