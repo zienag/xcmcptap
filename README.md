@@ -17,12 +17,7 @@ Launch the app once to register the LaunchAgent. After that, point any
 MCP-capable agent at `~/.local/bin/xcmcptap` (or `/usr/local/bin/xcmcptap`
 if you enable the system-wide symlink from Settings).
 
-Requires macOS 26 (Tahoe) or newer. The tap is private — you need a
-GitHub token with access to `zienag/homebrew-tap`:
-
-```sh
-export HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)"
-```
+Requires macOS 26 (Tahoe) or newer.
 
 Direct DMG download from [Releases](https://github.com/zienag/xcmcptap/releases)
 also works.

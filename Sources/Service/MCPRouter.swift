@@ -208,7 +208,7 @@ public final class MCPRouter: Sendable {
   /// it can't continue to accept stale input, fires `onBridgeStateChanged`
   /// with the provided reason, and lets the next client message drive
   /// a respawn via the existing auto-recovery path.
-  public func markBridgeUnavailable(reason: String) async {
+  public func markBridgeUnavailable(reason: String) {
     let connection = state.withLock { $0.currentConnection }
     if let connection {
       markBridgeFailed(reason: reason, failingConnection: connection)
@@ -244,7 +244,7 @@ public final class MCPRouter: Sendable {
       guard let connection else { continue }
       let ok = await raceRequestAgainstTimeout(connection: connection)
       if !ok {
-        await markBridgeUnavailable(
+        markBridgeUnavailable(
           reason: "mcpbridge not responding to health ping",
         )
       }

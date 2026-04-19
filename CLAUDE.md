@@ -119,7 +119,7 @@ The app (`App/`) handles installation; the service and helper binaries run as pl
 
 - **XcodeMCPTapShared** (`Sources/Shared/`) — `MCPTap` (service name constant), `MCPLine` (Codable message wrapper), `RPCMessage`/`RPCId` (JSON-RPC parsing), plus the status protocol types (`StatusRequest/Response`, `ConnectionInfo`, `ServiceHealth`, `ToolInfo`, `StatusEvent`) — all `Equatable` so they can appear in `@ObservableState`. Used by every other target.
 - **XcodeMCPTapClient** (`Sources/Client/`) — Client logic: XPC session, stdin reader, stdout writer. Exposes `public enum ClientMain { public static func run() }`.
-- **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, plus `public enum ServiceMain { public static func run() }`. Imported by tests.
+- **XcodeMCPTapService** (`Sources/Service/`) — Service logic: `BridgeProcess`, `SpawnedProcess`, `MCPConnection`, `MCPRouter`, `ConnectionRegistry`, `StatusEndpoint`, `XcodeLifecycleMonitor`, plus `public enum ServiceMain { public static func run() }`. The `Pipes/` subfolder holds the transport abstraction: `AnonymousPipe` (`pipe(2)` wrapper), `PipeTransport` (protocol), `DispatchIOPipeTransport` (default impl). Imported by tests.
 - **XcodeMCPTapHelper** (`Sources/Helper/`) — Privileged helper logic: `SymlinkOperations` (pure `FileManager` ops, testable in `$TMPDIR`), `HelperHandler` (request→response dispatch keyed on an injectable `destination`), and `public enum HelperMain { public static func run() }` which reads `HELPER_MACH_SERVICE` / `HELPER_DESTINATION` / `HELPER_ALLOW_ANY_PEER` from env and spins up `XPCListener(service:requirement:)`. No knowledge of `/usr/local/bin`; all paths injected.
 - **XcodeMCPTapUI** (`Sources/UI/`) — SwiftUI + TCA layer. Organized into four folders:
   - `Views/` — `ContentView`, `OverviewView`, `ToolsView`, `ConnectionsView`, `SettingsView`, plus `StatusDot`, `SidebarItem`, `ToolCategory`, `formatUptime(interval:)`.
@@ -129,7 +129,7 @@ The app (`App/`) handles installation; the service and helper binaries run as pl
   - Top-level `ServiceInstaller.swift` (live impl backing `ServiceInstallerClient`, owns `installSystemSymlink` / `uninstallSystemSymlink`), `SystemSymlinkInstaller.swift` (the `register daemon → open XPC → send request → close` flow with injectable `registerDaemon` / `openHelperSession` deps for tests; `.live` value wires real `SMAppService.daemon` + `XPCSession`), and `PreviewState.swift` (`AppFeature.State.previewRunning()` etc.).
 - **xpc-test-echo-server** (`Sources/TestEchoServer/`) — Test helper that echoes `MCPLine` messages back with "echo:" prefix.
 - **xcmcptap-helper** (`Sources/HelperExec/`) — SPM executable wrapper calling `HelperMain.run()`. Used by `HelperEndToEndTests` as a user-level LaunchAgent; the production copy shipped inside `.app` is the Xcode-native target of the same name.
-- **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, Subprocess round-trip tests, MCP proxy tests.
+- **XPCTests** (`Tests/XPCTests/`) — Swift Testing suite: XPC echo tests, MCP proxy + bridge-failure tests, helper end-to-end tests.
 - **UISnapshotTests** (`Tests/UISnapshotTests/`) — Swift Testing suite: SwiftUI snapshot tests over `XcodeMCPTapUI`.
 - **FeatureTests** (`Tests/FeatureTests/`) — Swift Testing suite: TCA `TestStore` tests over `AppFeature` / `ToolsFeature` / `SettingsFeature`.
 
@@ -145,7 +145,10 @@ The app (`App/`) handles installation; the service and helper binaries run as pl
 
 ### Key design details
 
-- **Subprocess I/O:** `BridgeProcess` uses [swift-subprocess](https://github.com/swiftlang/swift-subprocess) (not Foundation.Process). An `AsyncStream<[UInt8]>` bridges the synchronous `write()` calls (from XPC handlers) to the async `StandardInputWriter` inside the `run()` closure. `preferredBufferSize: 1` is required — larger buffers cause DispatchIO to hold back interactive output. `outputSequence.lines()` reads stdout line-by-line (strips newlines).
+- **Subprocess stack:** `BridgeProcess<Transport: PipeTransport>` owns three `AnonymousPipe`s, hands the child ends to `SpawnedProcess.spawn` (`posix_spawn` + `DispatchSource.makeProcessSource(.exit)`), and drives the parent ends through the transport. Default `DispatchIOPipeTransport` uses one `channel.read(length: .max)` with `lowWater: 1` so the handler fires as bytes arrive. `Transport` is a generic parameter, not `any PipeTransport` — swaps compile-time, no witness-table dispatch. Rationale for rolling our own instead of using swift-subprocess in [docs/subprocess.md](docs/subprocess.md).
+- **DispatchSource: handler before resume.** `setEventHandler` must be attached before `resume()`. Events fired in the gap silently drop. For `.exit`, that means a subprocess that dies between resume and handler attachment never gets reaped. `SpawnedProcess` sets the handler during construction and buffers exit status through `Mutex<State>` so `waitForExit` can arrive late.
+- **`F_SETNOSIGPIPE` on every pipe write end we own.** Writing to a pipe whose reader is gone raises `SIGPIPE`; the default disposition terminates the whole host process, which manifests as `error: Exited with unexpected signal code 13` in test runs. `fcntl(fd, F_SETNOSIGPIPE, 1)` makes `write(2)` return `EPIPE` instead.
+- **Async on a sync operation costs scheduling latency.** If a method does no `await` internally, don't mark it `async` — callers wrap in `Task { await ... }` and that extra Task hop can take hundreds of milliseconds under test concurrency.
 - **MCP init caching:** `MCPRouter` pre-initializes the bridge (sends `initialize` + `initialized` + `tools/list`), caches the init response, and replays it to each client. Messages arriving before init completes are buffered in `pendingClientMessages`.
 - **Single bridge, many clients:** The service creates ONE shared `BridgeProcess` at startup and multiplexes all XPC connections through it.
 - **Platform:** macOS 26.0+, Swift 6.2 with strict concurrency. Uses the `XPC` framework module directly (not the old C `xpc_*` API).
@@ -156,7 +159,7 @@ The app (`App/`) handles installation; the service and helper binaries run as pl
 - **Thread safety & no unsafe shortcuts.** Mutable shared state is guarded by `Synchronization.Mutex`. A class with `private let state = Mutex(...)` is genuinely `Sendable` — write `final class Foo: Sendable { ... }`, and drop the conformance entirely if the type never crosses isolations. The following "shut the checker up" escape hatches are banned, with the modern replacement in each case:
   - `@unchecked Sendable`, `nonisolated(unsafe)` → real `Sendable` backed by `Mutex`, an `actor`, or all-`let` stored properties
   - `unsafeBitCast`, `unsafeDowncast` → proper casts / explicit conversions
-  - `Foundation.Process` → [swift-subprocess](https://github.com/swiftlang/swift-subprocess)
+  - `Foundation.Process` → `SpawnedProcess` (`Sources/Service/SpawnedProcess.swift`)
   - `NSLock` → `Synchronization.Mutex`
   - C `xpc_*` API → `XPC` framework module
   - top-level code in `main.swift` → `@main` type

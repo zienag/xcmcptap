@@ -96,7 +96,7 @@ struct BridgeStatusEventTests {
     router.start()
     try await recorder.waitFor(.ready, timeout: .seconds(5))
 
-    await router.markBridgeUnavailable(reason: "Xcode not running")
+    router.markBridgeUnavailable(reason: "Xcode not running")
 
     let reason = try await recorder.waitForFailed(timeout: .seconds(2))
     #expect(reason.contains("Xcode not running"))

@@ -12,7 +12,6 @@ let package = Package(
     .library(name: "XcodeMCPTapUI", targets: ["XcodeMCPTapUI"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/swiftlang/swift-subprocess.git", from: "0.4.0"),
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.17.0"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.17.0"),
   ],
@@ -25,10 +24,7 @@ let package = Package(
     ),
     .target(
       name: "XcodeMCPTapService",
-      dependencies: [
-        "XcodeMCPTapShared",
-        .product(name: "Subprocess", package: "swift-subprocess"),
-      ],
+      dependencies: ["XcodeMCPTapShared"],
       path: "Sources/Service",
     ),
     .target(
@@ -61,7 +57,6 @@ let package = Package(
         "XcodeMCPTapService",
         "XcodeMCPTapShared",
         "XcodeMCPTapHelper",
-        .product(name: "Subprocess", package: "swift-subprocess"),
       ],
       path: "Tests/XPCTests",
     ),

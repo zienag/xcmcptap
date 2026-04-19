@@ -97,7 +97,7 @@ struct BridgeUnavailableDetectionTests {
       center: center,
       isXcode: { _ in true },
       onTerminated: {
-        Task { await router.markBridgeUnavailable(reason: "Xcode not running") }
+        router.markBridgeUnavailable(reason: "Xcode not running")
       },
     )
 

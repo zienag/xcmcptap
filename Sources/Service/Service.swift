@@ -42,7 +42,7 @@ public enum ServiceMain {
     let xcodeMonitor = XcodeLifecycleMonitor(
       onTerminated: {
         lifecycleLog.notice("Xcode terminated — marking bridge unavailable")
-        Task { await router.markBridgeUnavailable(reason: "Xcode not running") }
+        router.markBridgeUnavailable(reason: "Xcode not running")
       },
       onLaunched: {
         lifecycleLog.notice("Xcode launched — bridge will respawn on next request")

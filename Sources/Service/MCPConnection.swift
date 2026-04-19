@@ -75,6 +75,7 @@ public actor MCPConnection {
         output: readCont,
         stderr: errCont,
         pid: pidCont,
+        transport: DispatchIOPipeTransport(),
       )
       await bridge.run()
     }
