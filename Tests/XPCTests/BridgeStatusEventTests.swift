@@ -103,39 +103,73 @@ struct BridgeStatusEventTests {
   }
 }
 
-/// Thread-safe recorder for BridgeStatus transitions with polling helpers.
 final class StatusRecorder: Sendable {
-  private let events = Mutex<[BridgeStatus]>([])
+  private struct State {
+    var events: [BridgeStatus] = []
+    var subscribers: [AsyncStream<BridgeStatus>.Continuation] = []
+  }
+
+  private let state = Mutex(State())
 
   func append(_ status: BridgeStatus) {
-    events.withLock { $0.append(status) }
+    let subscribers = state.withLock { s -> [AsyncStream<BridgeStatus>.Continuation] in
+      s.events.append(status)
+      return s.subscribers
+    }
+    for subscriber in subscribers { subscriber.yield(status) }
   }
 
   func all() -> [BridgeStatus] {
-    events.withLock { $0 }
+    state.withLock { $0.events }
+  }
+
+  private func subscribe() -> AsyncStream<BridgeStatus> {
+    AsyncStream { continuation in
+      state.withLock { s in
+        for event in s.events { continuation.yield(event) }
+        s.subscribers.append(continuation)
+      }
+    }
   }
 
   func waitFor(
     _ target: BridgeStatus,
     timeout: Duration,
   ) async throws {
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while ContinuousClock.now < deadline {
-      if all().contains(target) { return }
-      try await Task.sleep(for: .milliseconds(50))
+    let matched: Bool? = await raceTimeout(timeout) {
+      for await status in self.subscribe() where status == target { return true }
+      return nil
     }
-    Issue.record("timed out waiting for \(target); got \(all())")
+    if matched != true {
+      Issue.record("timed out waiting for \(target); got \(all())")
+    }
   }
 
   func waitForFailed(timeout: Duration) async throws -> String {
-    let deadline = ContinuousClock.now.advanced(by: timeout)
-    while ContinuousClock.now < deadline {
-      for event in all() {
-        if case let .failed(reason) = event { return reason }
+    let reason: String? = await raceTimeout(timeout) {
+      for await status in self.subscribe() {
+        if case let .failed(reason) = status { return reason }
       }
-      try await Task.sleep(for: .milliseconds(50))
+      return nil
     }
+    if let reason { return reason }
     Issue.record("timed out waiting for .failed; got \(all())")
     return ""
+  }
+}
+
+private func raceTimeout<T: Sendable>(
+  _ duration: Duration,
+  _ work: @Sendable @escaping () async -> T?,
+) async -> T? {
+  await withTaskGroup(of: T?.self) { group in
+    group.addTask { await work() }
+    group.addTask {
+      try? await Task.sleep(for: duration)
+      return nil
+    }
+    let result = await group.next() ?? nil
+    group.cancelAll()
+    return result
   }
 }
