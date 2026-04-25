@@ -22,13 +22,13 @@ public final class ConnectionRegistry: Sendable {
     set { state.withLock { $0.onEvent = newValue } }
   }
 
-  public func register(id: UUID, bridgePID: Int32) -> ConnectionInfo {
+  public func register(id: UUID, clientPID: Int32) -> ConnectionInfo {
     let info = ConnectionInfo(
       id: id,
       connectedAt: Date(),
       messagesRouted: 0,
       lastActivityAt: Date(),
-      bridgePID: bridgePID,
+      clientPID: clientPID,
     )
 
     let handler = state.withLock {
@@ -39,6 +39,14 @@ public final class ConnectionRegistry: Sendable {
 
     handler?(.connectionOpened(info))
     return info
+  }
+
+  /// Overwrite the connection's `clientPID`. The service registers each
+  /// connection with a placeholder `0` at XPC-accept time — the peer's
+  /// PID isn't available then — and fills in the real value when the
+  /// first `MCPLine` arrives carrying `clientPID`.
+  public func updateClientPID(id: UUID, pid: Int32) {
+    state.withLock { $0.connections[id]?.clientPID = pid }
   }
 
   public func unregister(id: UUID) {

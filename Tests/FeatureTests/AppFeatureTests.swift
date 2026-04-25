@@ -10,7 +10,7 @@ private let testConnection = ConnectionInfo(
   connectedAt: testNow.addingTimeInterval(-10),
   messagesRouted: 5,
   lastActivityAt: testNow.addingTimeInterval(-1),
-  bridgePID: 42,
+  clientPID: 42,
 )
 private let testHealth = ServiceHealth(
   startedAt: testNow.addingTimeInterval(-60),

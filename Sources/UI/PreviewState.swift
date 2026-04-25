@@ -114,21 +114,21 @@ public extension AppFeature.State {
         connectedAt: now.addingTimeInterval(-1247),
         messagesRouted: 184,
         lastActivityAt: now.addingTimeInterval(-2),
-        bridgePID: 81234,
+        clientPID: 81234,
       ),
       .init(
         id: previewUUID(0x22),
         connectedAt: now.addingTimeInterval(-312),
         messagesRouted: 27,
         lastActivityAt: now.addingTimeInterval(-58),
-        bridgePID: 81245,
+        clientPID: 81245,
       ),
       .init(
         id: previewUUID(0x33),
         connectedAt: now.addingTimeInterval(-44),
         messagesRouted: 4,
         lastActivityAt: now.addingTimeInterval(-12),
-        bridgePID: 81260,
+        clientPID: 81260,
       ),
     ]
   }

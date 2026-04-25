@@ -22,9 +22,15 @@ public enum HelperResponse: Codable, Equatable, Sendable {
 
 public struct MCPLine: Codable, Sendable {
   public var content: String
+  /// PID of the client process that sent this message. Only populated on
+  /// client→service direction — the service leaves this `nil` when it
+  /// sends bridge output back to the client. Optional on the wire so old
+  /// messages that predate the field still decode.
+  public var clientPID: Int32?
 
-  public init(_ content: String) {
+  public init(_ content: String, clientPID: Int32? = nil) {
     self.content = content
+    self.clientPID = clientPID
   }
 }
 
@@ -71,14 +77,25 @@ public struct ConnectionInfo: Codable, Equatable, Sendable, Identifiable {
   public var connectedAt: Date
   public var messagesRouted: Int
   public var lastActivityAt: Date
-  public var bridgePID: Int32
+  /// PID of the client agent process (Claude Code, Cursor, Codex, etc.).
+  /// Populated from the first `MCPLine` the client sends; `0` until then.
+  /// The mcpbridge PID is shared across every connection and therefore
+  /// not useful to surface per-row — the client PID is what differentiates
+  /// simultaneously-connected agents.
+  public var clientPID: Int32
 
-  public init(id: UUID, connectedAt: Date, messagesRouted: Int, lastActivityAt: Date, bridgePID: Int32) {
+  public init(
+    id: UUID,
+    connectedAt: Date,
+    messagesRouted: Int,
+    lastActivityAt: Date,
+    clientPID: Int32,
+  ) {
     self.id = id
     self.connectedAt = connectedAt
     self.messagesRouted = messagesRouted
     self.lastActivityAt = lastActivityAt
-    self.bridgePID = bridgePID
+    self.clientPID = clientPID
   }
 }
 

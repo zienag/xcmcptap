@@ -65,7 +65,7 @@ private struct ConnectionRow: View {
           in: RoundedRectangle(cornerRadius: Radius.small, style: .continuous),
         )
 
-      Text(verbatim: "PID \(connection.bridgePID)")
+      Text(verbatim: "PID \(connection.clientPID)")
         .font(.system(.callout, design: .monospaced))
         .lineLimit(1)
         .gridColumnAlignment(.leading)

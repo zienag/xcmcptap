@@ -31,10 +31,12 @@ public enum ClientMain {
       exit(1)
     }
 
+    let clientPID = getpid()
+
     DispatchQueue.global().async {
       while let line = readLine() {
         do {
-          try session.send(MCPLine(line))
+          try session.send(MCPLine(line, clientPID: clientPID))
         } catch {
           log.error("failed to send: \(String(describing: error), privacy: .public)")
           fputs("Failed to send: \(error)\n", stderr)

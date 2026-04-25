@@ -1,49 +1,45 @@
 # Xcode MCP Tap
 
-A signed, notarized macOS service that keeps a single `mcpbridge` process
-alive and proxies every MCP client connection through it — so Xcode's
-"agent wants to use Xcode's tools" permission dialog only appears **once**,
-not every time a coding agent starts a session.
+A macOS service that proxies MCP clients to Xcode through a single
+shared `mcpbridge` process, so Xcode's permission dialog is approved
+once instead of on every agent session.
 
-## Install
+## Installation
 
 ```sh
 brew tap zienag/tap
 brew install --cask xcmcptap
-open -a "Xcode MCP Tap"
 ```
 
-Launch the app once to register the LaunchAgent. After that, point any
-MCP-capable agent at `~/.local/bin/xcmcptap` (or `/usr/local/bin/xcmcptap`
-if you enable the system-wide symlink from Settings).
+A DMG is also available from
+[Releases](https://github.com/zienag/xcmcptap/releases). The first
+launch of the app registers a LaunchAgent that runs the service in the
+background, independent of the UI.
 
-Requires macOS 26 (Tahoe) or newer.
+## Client configuration
 
-Direct DMG download from [Releases](https://github.com/zienag/xcmcptap/releases)
-also works.
+The client binary is installed at `~/.local/bin/xcmcptap`. Settings
+can additionally create `/usr/local/bin/xcmcptap` for a machine-wide
+path.
 
-## Release
-
-Tag and push:
+Registration commands for CLI agents:
 
 ```sh
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
+claude mcp add --transport stdio xcode -- ~/.local/bin/xcmcptap
+codex mcp add xcode -- ~/.local/bin/xcmcptap
+gemini mcp add xcode ~/.local/bin/xcmcptap
 ```
 
-`.github/workflows/release.yml` builds, signs, notarizes, creates a
-GitHub Release with the DMG, and updates
-[`zienag/homebrew-tap`](https://github.com/zienag/homebrew-tap) with the
-new cask version + SHA256.
+Standard MCP server entry for editor agents (Cursor, VS Code, Windsurf):
 
-### Required GitHub Secrets
+```json
+{ "mcpServers": { "xcode": { "command": "/Users/you/.local/bin/xcmcptap" } } }
+```
 
-| Secret | Value |
-|---|---|
-| `DEVELOPER_ID_CERT_P12` | Base64-encoded `.p12` of the Developer ID Application cert |
-| `DEVELOPER_ID_CERT_PASSWORD` | Password for the `.p12` |
-| `APP_STORE_CONNECT_KEY_ID` | 10-char App Store Connect API key ID |
-| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect team issuer UUID |
-| `APP_STORE_CONNECT_KEY` | Base64-encoded `.p8` private key |
-| `KEYCHAIN_PASSWORD` | Arbitrary password for the runner's temp keychain |
-| `TAP_REPO_TOKEN` | GitHub PAT with `contents:write` on `zienag/homebrew-tap` |
+The Settings pane contains copy-paste snippets for every supported
+client.
+
+## Requirements
+
+macOS 26 (Tahoe) or newer. Xcode 26.3 or newer for the bundled
+`mcpbridge`.

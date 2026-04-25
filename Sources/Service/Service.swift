@@ -60,8 +60,12 @@ public enum ServiceMain {
         let (decision, session) = request.accept(
           incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
             xpcLog.debug("received from client: \(message.content.prefix(100), privacy: .private)")
-            registry.recordMessage(id: connectionID)
-            router.handleClientMessage(from: connectionID, message.content)
+            Self.handleIncomingMessage(
+              message,
+              from: connectionID,
+              registry: registry,
+              router: router,
+            )
             return nil
           },
           cancellationHandler: { _ in
@@ -76,8 +80,10 @@ public enum ServiceMain {
           try? session.send(MCPLine(line))
         }
 
-        // Bridge PID is not meaningful across respawns; report 0.
-        _ = registry.register(id: connectionID, bridgePID: 0)
+        // Placeholder clientPID: the XPC `IncomingSessionRequest` does not
+        // expose the peer's PID, so we register the row here and wait for
+        // the client to self-report its PID in its first `MCPLine`.
+        _ = registry.register(id: connectionID, clientPID: 0)
         return decision
       }
     } catch {
@@ -97,5 +103,22 @@ public enum ServiceMain {
     withExtendedLifetime((listener, statusListener, router, xcodeMonitor)) {
       dispatchMain()
     }
+  }
+
+  /// Processes one client→service `MCPLine`: records the activity, lifts
+  /// the client's self-reported PID into the registry (if present), and
+  /// forwards the wire payload to the router. Exposed so tests can drive
+  /// the seam without standing up an XPC listener.
+  public static func handleIncomingMessage(
+    _ message: MCPLine,
+    from connectionID: UUID,
+    registry: ConnectionRegistry,
+    router: MCPRouter,
+  ) {
+    registry.recordMessage(id: connectionID)
+    if let pid = message.clientPID, pid != 0 {
+      registry.updateClientPID(id: connectionID, pid: pid)
+    }
+    router.handleClientMessage(from: connectionID, message.content)
   }
 }
