@@ -36,16 +36,17 @@ public enum ServiceMain {
 
     // Proactively flip the bridge to .failed the moment Xcode quits, so
     // the UI doesn't keep showing a stale .ready until the next tool
-    // call surfaces the failure. On launch we just log — auto-respawn
-    // is driven by the next client request via the router's existing
-    // recovery path.
+    // call surfaces the failure. Recovery in the new fallback model is
+    // driven by the agent calling `xcmcptap_reload`; the launch hook
+    // just logs so the operator can correlate Xcode startup with a
+    // subsequent reload attempt.
     let xcodeMonitor = XcodeLifecycleMonitor(
       onTerminated: {
         lifecycleLog.notice("Xcode terminated — marking bridge unavailable")
         router.markBridgeUnavailable(reason: "Xcode not running")
       },
       onLaunched: {
-        lifecycleLog.notice("Xcode launched — bridge will respawn on next request")
+        lifecycleLog.notice("Xcode launched — call xcmcptap_reload to bring bridge back")
       },
     )
 
