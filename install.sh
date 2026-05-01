@@ -6,7 +6,7 @@ usage() {
   cat <<EOF
 Usage: $0 [--dmg|--exit]
 
-  (no args)  Build, notarize, install to ~/Applications, launch.
+  (no args)  Build, notarize, install to /Applications, launch.
   --dmg      Build, notarize, package as .build/XcodeMCPTap.dmg.
   --exit     Stop the service and quit the app (without uninstalling).
 

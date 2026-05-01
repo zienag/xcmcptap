@@ -16,6 +16,12 @@ public struct SettingsView: View {
         integrationsCard
         pathsCard
         actionsRow
+        if !store.appVersion.isEmpty {
+          Text("Version \(store.appVersion)")
+            .font(.caption)
+            .foregroundStyle(.tertiary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
       }
       .padding(Spacing.l)
       .frame(maxWidth: .infinity, alignment: .leading)

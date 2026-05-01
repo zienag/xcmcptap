@@ -237,6 +237,9 @@ jobs:
 
             app "Xcode MCP Tap.app"
 
+            uninstall launchctl: "alfred.xcmcptap",
+                      delete:    "/usr/local/bin/xcmcptap"
+
             zap trash: [
               "~/Library/LaunchAgents/alfred.xcmcptap.plist",
               "~/.local/bin/xcmcptap",

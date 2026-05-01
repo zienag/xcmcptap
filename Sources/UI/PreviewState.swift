@@ -6,6 +6,9 @@ public extension AppFeature.State {
   /// Fixed reference time for deterministic previews and snapshot tests.
   static let previewNow = Date(timeIntervalSince1970: 1_700_000_000)
 
+  /// Fixed version label for deterministic previews and snapshot tests.
+  static let previewAppVersion = "1.0.0"
+
   /// Stable path values for deterministic snapshot output. Paths point at
   /// guaranteed-absent locations so `FileManager.fileExists(atPath:)` is
   /// always `false`, regardless of whether the host dev machine happens to
@@ -18,6 +21,7 @@ public extension AppFeature.State {
     var state = state
     state.plistPath = previewPlistPath
     state.clientPath = previewClientPath
+    state.appVersion = previewAppVersion
     return state
   }
 

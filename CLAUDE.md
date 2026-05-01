@@ -57,7 +57,7 @@ swift test                             # Run all SPM tests
 swift test --filter UISnapshotTests    # Or filter by target name
 
 # Install & distribute
-./install.sh                           # Regenerate project, build release, sign, notarize, install to ~/Applications
+./install.sh                           # Regenerate project, build release, sign, notarize, install to /Applications
 ./install.sh --dmg                     # Same as above, but package into a .dmg instead of installing
 scripts/uninstall.sh                   # Remove app, LaunchAgent, helper daemon, ~/.local/bin + /usr/local/bin symlinks
 ```

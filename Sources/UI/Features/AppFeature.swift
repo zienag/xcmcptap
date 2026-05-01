@@ -6,6 +6,7 @@ import XcodeMCPTapShared
 public struct AppFeature {
   @ObservableState
   public struct State: Equatable {
+    public var appVersion: String = ""
     public var bridgeStatus: BridgeStatus = .booting
     public var clientPath: String = ServiceInstaller.clientLinkPath
     public var connections: [ConnectionInfo] = []
@@ -22,6 +23,7 @@ public struct AppFeature {
     public var tools: ToolsFeature.State = .init()
 
     public init(
+      appVersion: String = "",
       bridgeStatus: BridgeStatus = .booting,
       connections: [ConnectionInfo] = [],
       health: ServiceHealth? = nil,
@@ -34,6 +36,7 @@ public struct AppFeature {
       settings: SettingsFeature.State = .init(),
       tools: ToolsFeature.State = .init(),
     ) {
+      self.appVersion = appVersion
       self.bridgeStatus = bridgeStatus
       self.connections = connections
       self.health = health
