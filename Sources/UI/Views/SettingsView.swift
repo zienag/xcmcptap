@@ -77,17 +77,26 @@ public struct SettingsView: View {
         .textSelection(.enabled)
         .frame(maxWidth: .infinity, alignment: .leading)
       Button {
-        store.send(.settings(.copyTapped(id: integration.id, command: integration.text)))
+        store.send(
+          .settings(
+            .revealAndCopyTapped(
+              id: integration.id,
+              command: integration.text,
+              configPath: integration.configPath,
+            ),
+          ),
+        )
       } label: {
         Label(
-          copied ? "Copied" : "Copy",
-          systemImage: copied ? "checkmark" : "doc.on.doc",
+          copied ? "Copied" : "Reveal",
+          systemImage: copied ? "checkmark" : "arrow.up.right.square",
         )
         .fixedSize()
       }
       .buttonStyle(.bordered)
       .controlSize(.small)
       .tint(copied ? .green : .accentColor)
+      .help("Reveal \(integration.configPath) in Finder and copy the snippet to the clipboard")
       .animation(.easeInOut(duration: 0.15), value: copied)
     }
   }

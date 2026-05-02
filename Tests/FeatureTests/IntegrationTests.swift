@@ -35,4 +35,17 @@ struct IntegrationTests {
       )
     }
   }
+
+  @Test
+  func eachIntegrationKnowsItsConfigPath() {
+    let integrations = Integration.all(clientPath: "/tmp/xcmcptap", onSystemPath: false)
+    let byID = Dictionary(uniqueKeysWithValues: integrations.map { ($0.id, $0.configPath) })
+
+    #expect(byID["claude"] == "~/.claude.json")
+    #expect(byID["codex"] == "~/.codex/config.toml")
+    #expect(byID["gemini"] == "~/.gemini/settings.json")
+    #expect(byID["vscode"] == "~/Library/Application Support/Code/User/mcp.json")
+    #expect(byID["cursor"] == "~/.cursor/mcp.json")
+    #expect(byID["windsurf"] == "~/.codeium/windsurf/mcp_config.json")
+  }
 }

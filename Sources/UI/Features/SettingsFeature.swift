@@ -16,10 +16,10 @@ public struct SettingsFeature {
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case copyResetElapsed(id: String)
-    case copyTapped(id: String, command: String)
     case delegate(Delegate)
     case installSystemPathTapped
     case installTapped
+    case revealAndCopyTapped(id: String, command: String, configPath: String)
     case uninstallCancelled
     case uninstallConfirmed
     case uninstallSystemPathTapped
@@ -36,6 +36,7 @@ public struct SettingsFeature {
 
   public init() {}
 
+  @Dependency(\.configRevealer) var configRevealer
   @Dependency(\.continuousClock) var clock
   @Dependency(\.pasteboard) var pasteboard
 
@@ -48,12 +49,14 @@ public struct SettingsFeature {
       case .binding:
         return .none
 
-      case let .copyTapped(id, command):
+      case let .revealAndCopyTapped(id, command, configPath):
         state.copiedIntegrationID = id
         let clock = clock
         let pasteboard = pasteboard
+        let configRevealer = configRevealer
         return .run { send in
           pasteboard.copy(command)
+          configRevealer.reveal(path: configPath)
           try await clock.sleep(for: .seconds(1.2))
           await send(.copyResetElapsed(id: id))
         }
