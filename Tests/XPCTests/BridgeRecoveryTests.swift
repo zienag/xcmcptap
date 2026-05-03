@@ -34,12 +34,13 @@ struct BridgeRecoveryTests {
       let n = attempts.next()
       let failMode = n == 1 ? "at-startup" : "normal"
       return MCPConnection(
+        serviceName: testServiceName,
         exec: "/usr/bin/python3",
         args: ["-u", Self.mockBridge, "--fail", failMode],
       )
     }
 
-    let router = MCPRouter(makeConnection: factory)
+    let router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: factory)
     let collector = ResponseCollector()
     let clientID = router.registerClient { [collector] line in
       collector.continuation.yield(line)

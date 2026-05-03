@@ -5,7 +5,7 @@ import XcodeMCPTapShared
 @Suite(.serialized)
 struct MCPBridgeHandshakeTests {
   @Test func handshakeWithMCPBridge() async throws {
-    let connection = MCPConnection(exec: MockBridge.path())
+    let connection = MCPConnection(serviceName: testServiceName, exec: MockBridge.path())
     await connection.start()
     defer { Task { await connection.terminate() } }
 
@@ -18,7 +18,7 @@ struct MCPBridgeHandshakeTests {
   }
 
   @Test func listToolsFromMCPBridge() async throws {
-    let connection = MCPConnection(exec: MockBridge.path())
+    let connection = MCPConnection(serviceName: testServiceName, exec: MockBridge.path())
     await connection.start()
     defer { Task { await connection.terminate() } }
 

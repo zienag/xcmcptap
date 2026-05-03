@@ -68,37 +68,41 @@ public struct SystemSymlinkInstaller: Sendable {
 
 public extension SystemSymlinkInstaller {
   /// Live wiring: registers the bundled helper daemon plist with SMAppService
-  /// and opens an XPC session to the helper's Mach service.
-  static let live = SystemSymlinkInstaller(
-    registerDaemon: {
-      let daemon = SMAppService.daemon(plistName: "\(MCPTap.helperServiceName).plist")
-      do {
-        try daemon.register()
-      } catch {
-        // On a first-time (or not-yet-approved) daemon, `register()` throws
-        // `Operation not permitted` even though BTM accepted the registration.
-        // Surface that as `requiresApproval` so the UI can redirect the user
-        // to Login Items instead of silently failing.
-        if daemon.status == .requiresApproval {
-          throw SystemSymlinkInstallerError.requiresApproval
+  /// and opens an XPC session to the helper's Mach service. Identity values
+  /// (mach service name, plist file name) are injected by the caller so this
+  /// type doesn't carry any global identity references.
+  static func live(helperServiceName: String, helperPlistName: String) -> SystemSymlinkInstaller {
+    SystemSymlinkInstaller(
+      registerDaemon: {
+        let daemon = SMAppService.daemon(plistName: helperPlistName)
+        do {
+          try daemon.register()
+        } catch {
+          // On a first-time (or not-yet-approved) daemon, `register()` throws
+          // `Operation not permitted` even though BTM accepted the registration.
+          // Surface that as `requiresApproval` so the UI can redirect the user
+          // to Login Items instead of silently failing.
+          if daemon.status == .requiresApproval {
+            throw SystemSymlinkInstallerError.requiresApproval
+          }
+          throw error
         }
-        throw error
-      }
-    },
-    openHelperSession: {
-      let xpc = try XPCSession(
-        machService: MCPTap.helperServiceName,
-        incomingMessageHandler: { (_: HelperResponse) -> (any Encodable)? in nil },
-        cancellationHandler: nil,
-      )
-      return HelperSession(
-        send: { request in
-          try xpc.sendSync(request) as HelperResponse
-        },
-        close: {
-          xpc.cancel(reason: "helper session done")
-        },
-      )
-    },
-  )
+      },
+      openHelperSession: {
+        let xpc = try XPCSession(
+          machService: helperServiceName,
+          incomingMessageHandler: { (_: HelperResponse) -> (any Encodable)? in nil },
+          cancellationHandler: nil,
+        )
+        return HelperSession(
+          send: { request in
+            try xpc.sendSync(request) as HelperResponse
+          },
+          close: {
+            xpc.cancel(reason: "helper session done")
+          },
+        )
+      },
+    )
+  }
 }

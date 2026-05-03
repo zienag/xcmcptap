@@ -170,11 +170,12 @@ struct FallbackToolTests {
       let n = attempts.next()
       let failMode = n == 1 ? "at-startup" : "normal"
       return MCPConnection(
+        serviceName: testServiceName,
         exec: "/usr/bin/python3",
         args: ["-u", Self.mockBridge, "--fail", failMode],
       )
     }
-    let router = MCPRouter(makeConnection: factory)
+    let router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: factory)
     let collector = ResponseCollector()
     let clientID = router.registerClient { [collector] line in
       collector.continuation.yield(line)
@@ -247,8 +248,8 @@ struct FallbackToolTests {
   @Test func firstEverReadyDoesNotBroadcastToolsListChanged() async throws {
     let recorder = StatusRecorder()
     let collector = ResponseCollector()
-    let router = MCPRouter(makeConnection: {
-      MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
+    let router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: {
+      MCPConnection(serviceName: testServiceName, exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
     })
     router.onBridgeStateChanged = { recorder.append($0) }
     _ = router.registerClient { [collector] line in
@@ -309,10 +310,11 @@ struct FallbackToolTests {
   /// broadcast path.
   @Test func midSessionCrashBroadcastsToAllConnectedClients() async throws {
     let connection = MCPConnection(
+      serviceName: testServiceName,
       exec: "/usr/bin/python3",
       args: ["-u", Self.mockBridge, "--fail", "after-init"],
     )
-    let router = MCPRouter(connection: connection)
+    let router = MCPRouter(serviceName: testServiceName, clientName: testIdentity.appDisplayName, connection: connection)
     let collectorA = ResponseCollector()
     let collectorB = ResponseCollector()
     let idA = router.registerClient { [collectorA] line in

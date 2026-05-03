@@ -42,8 +42,13 @@ import XcodeMCPTapShared
   }
 
   @Test func helperServiceNameIsDistinct() {
-    #expect(MCPTap.helperServiceName != MCPTap.serviceName)
-    #expect(MCPTap.helperServiceName != MCPTap.statusServiceName)
-    #expect(!MCPTap.helperServiceName.isEmpty)
+    let identity = Identity(
+      serviceName: "alfred.xcmcptap",
+      appDisplayName: "Xcode MCP Tap",
+      symlinkName: "xcmcptap",
+    )
+    #expect(identity.helperServiceName != identity.serviceName)
+    #expect(identity.helperServiceName != identity.statusServiceName)
+    #expect(!identity.helperServiceName.isEmpty)
   }
 }

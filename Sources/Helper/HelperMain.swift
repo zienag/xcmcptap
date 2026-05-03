@@ -5,20 +5,19 @@ import os
 import XcodeMCPTapShared
 import XPC
 
-private let log = Logger(subsystem: MCPTap.helperServiceName, category: "xpc")
-
 public enum HelperMain {
-  public static func run() {
+  public static func run(identity: Identity) {
+    let log = Logger(subsystem: identity.helperServiceName, category: "xpc")
     let env = ProcessInfo.processInfo.environment
-    let machService = env["HELPER_MACH_SERVICE"] ?? MCPTap.helperServiceName
-    let destination = env["HELPER_DESTINATION"] ?? "/usr/local/bin/xcmcptap"
+    let machService = env["HELPER_MACH_SERVICE"] ?? identity.helperServiceName
+    let destination = env["HELPER_DESTINATION"] ?? "/usr/local/bin/\(identity.symlinkName)"
 
     let allowAnyPeer = env["HELPER_ALLOW_ANY_PEER"] == "1"
     log.notice(
       "listening on \(machService, privacy: .public), destination=\(destination, privacy: .public), allowAnyPeer=\(allowAnyPeer, privacy: .public)",
     )
 
-    let handler = HelperHandler(destination: destination)
+    let handler = HelperHandler(destination: destination, serviceName: identity.helperServiceName)
 
     do {
       let listener: XPCListener = if allowAnyPeer {
@@ -28,7 +27,7 @@ public enum HelperMain {
       } else {
         try XPCListener(
           service: machService,
-          requirement: .isFromSameTeam(andMatchesSigningIdentifier: MCPTap.serviceName),
+          requirement: .isFromSameTeam(andMatchesSigningIdentifier: identity.serviceName),
         ) { request in
           Self.accept(request, handler: handler)
         }

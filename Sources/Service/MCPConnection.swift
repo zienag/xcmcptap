@@ -21,6 +21,7 @@ import XcodeMCPTapShared
 public actor MCPConnection {
   private let exec: String
   private let args: [String]
+  private let serviceName: String
 
   /// Writes to the subprocess's stdin.
   private let writes: AsyncStream<[UInt8]>.Continuation
@@ -45,11 +46,12 @@ public actor MCPConnection {
 
   public nonisolated let passthrough: AsyncStream<[UInt8]>
 
-  public init(exec: String, _ args: String...) {
-    self.init(exec: exec, args: args)
+  public init(serviceName: String, exec: String, _ args: String...) {
+    self.init(serviceName: serviceName, exec: exec, args: args)
   }
 
-  public init(exec: String, args: [String]) {
+  public init(serviceName: String, exec: String, args: [String]) {
+    self.serviceName = serviceName
     self.exec = exec
     self.args = args
     // Internal channels shared between the owning bridge task and this actor.
@@ -67,6 +69,7 @@ public actor MCPConnection {
     // is created INSIDE the task closure so there is no consume capture.
     let capturedExec = exec
     let capturedArgs = args
+    let capturedServiceName = serviceName
     self.bridgeTask = Task {
       let bridge = BridgeProcess(
         exec: capturedExec,
@@ -76,6 +79,7 @@ public actor MCPConnection {
         stderr: errCont,
         pid: pidCont,
         transport: DispatchIOPipeTransport(),
+        serviceName: capturedServiceName,
       )
       await bridge.run()
     }

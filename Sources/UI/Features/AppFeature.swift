@@ -6,23 +6,25 @@ import XcodeMCPTapShared
 public struct AppFeature {
   @ObservableState
   public struct State: Equatable {
+    public var appDisplayName: String = "Xcode MCP Tap"
     public var appVersion: String = ""
     public var bridgeStatus: BridgeStatus = .booting
-    public var clientPath: String = ServiceInstaller.clientLinkPath
+    public var clientPath: String = ""
     public var connections: [ConnectionInfo] = []
     public var health: ServiceHealth?
     public var isInstalled: Bool = false
     public var isOnSystemPath: Bool = false
     public var isServiceRunning: Bool = false
     public var now: Date = .distantPast
-    public var plistPath: String = ServiceInstaller.plistPath
+    public var plistPath: String = ""
     public var requiresApproval: Bool = false
     public var selection: SidebarItem = .overview
     public var settings: SettingsFeature.State = .init()
-    public var systemPath: String = ServiceInstaller.systemLinkPath
+    public var systemPath: String = ""
     public var tools: ToolsFeature.State = .init()
 
     public init(
+      appDisplayName: String = "Xcode MCP Tap",
       appVersion: String = "",
       bridgeStatus: BridgeStatus = .booting,
       connections: [ConnectionInfo] = [],
@@ -36,6 +38,7 @@ public struct AppFeature {
       settings: SettingsFeature.State = .init(),
       tools: ToolsFeature.State = .init(),
     ) {
+      self.appDisplayName = appDisplayName
       self.appVersion = appVersion
       self.bridgeStatus = bridgeStatus
       self.connections = connections

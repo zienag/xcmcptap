@@ -11,34 +11,57 @@ import ServiceManagement
 import XcodeMCPTapShared
 import XPC
 
-private let log = Logger(subsystem: MCPTap.serviceName, category: "install")
+/// Owns the install/uninstall flow for the LaunchAgent + client symlinks.
+/// Identity is injected at construction so this type carries no global
+/// references — production wires it up from the Xcode-generated build
+/// identity, tests pass a fixture.
+public struct ServiceInstaller: Sendable {
+  public let identity: Identity
+  private let log: Logger
+  private let uid: uid_t
+  private let systemSymlinkInstaller: SystemSymlinkInstaller
 
-public enum ServiceInstaller {
-  private static let uid = getuid()
-  private static let agentPlistName = "\(MCPTap.serviceName).plist"
-  private static let helperPlistName = "\(MCPTap.helperServiceName).plist"
-  private static let legacyPlistPath = NSHomeDirectory() + "/Library/LaunchAgents/\(MCPTap.serviceName).plist"
+  public init(identity: Identity) {
+    self.identity = identity
+    self.log = Logger(subsystem: identity.serviceName, category: "install")
+    self.uid = getuid()
+    self.systemSymlinkInstaller = SystemSymlinkInstaller.live(
+      helperServiceName: identity.helperServiceName,
+      helperPlistName: identity.helperPlistName,
+    )
+  }
 
-  public static let clientLinkPath = NSHomeDirectory() + "/.local/bin/xcmcptap"
-  public static let systemLinkPath = "/usr/local/bin/xcmcptap"
-  public static let systemLinkName = "xcmcptap"
+  public var clientLinkPath: String {
+    NSHomeDirectory() + "/.local/bin/" + identity.symlinkName
+  }
 
-  /// Path to the bundled plist we register with SMAppService. Points inside the running .app bundle.
-  public static var plistPath: String {
+  public var systemLinkPath: String {
+    "/usr/local/bin/" + identity.symlinkName
+  }
+
+  public var systemLinkName: String { identity.symlinkName }
+
+  /// Path to the bundled plist we register with SMAppService. Points
+  /// inside the running .app bundle.
+  public var plistPath: String {
     Bundle.main.bundleURL
-      .appendingPathComponent("Contents/Library/LaunchAgents/\(agentPlistName)")
+      .appendingPathComponent("Contents/Library/LaunchAgents/\(identity.agentPlistName)")
       .path
   }
 
-  private static var agentService: SMAppService {
-    SMAppService.agent(plistName: agentPlistName)
+  private var legacyPlistPath: String {
+    NSHomeDirectory() + "/Library/LaunchAgents/\(identity.agentPlistName)"
   }
 
-  private static var helperDaemonService: SMAppService {
-    SMAppService.daemon(plistName: helperPlistName)
+  private var agentService: SMAppService {
+    SMAppService.agent(plistName: identity.agentPlistName)
   }
 
-  public static func isInstalled() -> Bool {
+  private var helperDaemonService: SMAppService {
+    SMAppService.daemon(plistName: identity.helperPlistName)
+  }
+
+  public func isInstalled() -> Bool {
     switch agentService.status {
     case .enabled, .requiresApproval:
       return true
@@ -49,19 +72,19 @@ public enum ServiceInstaller {
     }
   }
 
-  public static func requiresApproval() -> Bool {
+  public func requiresApproval() -> Bool {
     agentService.status == .requiresApproval
   }
 
-  public static func openLoginItems() {
+  public func openLoginItems() {
     SMAppService.openSystemSettingsLoginItems()
   }
 
-  public static func isOnSystemPath() -> Bool {
+  public func isOnSystemPath() -> Bool {
     (try? FileManager.default.attributesOfItem(atPath: systemLinkPath)) != nil
   }
 
-  public static func install() {
+  public func install() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
       log.error("refusing to install: not running from a .app bundle")
       return
@@ -72,9 +95,24 @@ public enum ServiceInstaller {
       return
     }
 
+    // Refuse to call SMAppService when the running .app has been deleted
+    // from disk (e.g. user trashed the bundle while the process kept
+    // running, or a sibling install replaced it). `SMAppService.register`
+    // walks the bundle on disk to load the plist; with the bundle gone,
+    // it crashes inside `_load_plist_from_bundle` instead of returning an
+    // error. Bail before letting the framework dereference NULL.
+    guard FileManager.default.fileExists(atPath: Bundle.main.bundlePath) else {
+      log.error("refusing to install: .app bundle is no longer on disk at \(Bundle.main.bundlePath, privacy: .public)")
+      return
+    }
+    guard FileManager.default.fileExists(atPath: plistPath) else {
+      log.error("refusing to install: agent plist missing at \(plistPath, privacy: .public)")
+      return
+    }
+
     let clientPath = executableURL
       .deletingLastPathComponent()
-      .appendingPathComponent("xcmcptap").path
+      .appendingPathComponent(identity.symlinkName).path
 
     cleanUpLegacyAgent()
 
@@ -92,7 +130,7 @@ public enum ServiceInstaller {
     log.notice("install complete")
   }
 
-  public static func uninstall() {
+  public func uninstall() {
     // Tear down system symlink + helper daemon before the main agent so the
     // helper still has a live Mach service connection to receive the remove
     // request.
@@ -111,9 +149,9 @@ public enum ServiceInstaller {
     log.notice("uninstall complete")
   }
 
-  /// Installs a symlink at `/usr/local/bin/xcmcptap`. Registers a privileged
-  /// helper daemon on first use — triggers one admin prompt.
-  public static func installSystemSymlink() {
+  /// Installs a symlink at `/usr/local/bin/<symlinkName>`. Registers a
+  /// privileged helper daemon on first use — triggers one admin prompt.
+  public func installSystemSymlink() {
     guard Bundle.main.bundlePath.hasSuffix(".app") else {
       log.error("refusing to install system symlink: not running from a .app bundle")
       return
@@ -122,17 +160,30 @@ public enum ServiceInstaller {
       log.error("refusing to install system symlink: main bundle has no executable URL")
       return
     }
+    // Same defensive check as `install()` — see comment there. The helper
+    // daemon path also calls SMAppService, which crashes on a missing bundle.
+    guard FileManager.default.fileExists(atPath: Bundle.main.bundlePath) else {
+      log.error("refusing to install system symlink: .app bundle is no longer on disk at \(Bundle.main.bundlePath, privacy: .public)")
+      return
+    }
+    let helperPlistFile = Bundle.main.bundleURL
+      .appendingPathComponent("Contents/Library/LaunchDaemons/\(identity.helperPlistName)")
+      .path
+    guard FileManager.default.fileExists(atPath: helperPlistFile) else {
+      log.error("refusing to install system symlink: helper plist missing at \(helperPlistFile, privacy: .public)")
+      return
+    }
     let clientPath = executableURL
       .deletingLastPathComponent()
-      .appendingPathComponent("xcmcptap").path
+      .appendingPathComponent(identity.symlinkName).path
 
     runHelperFlow { installer in
       try await installer.install(source: clientPath)
     }
   }
 
-  /// Removes the `/usr/local/bin/xcmcptap` symlink via the helper daemon.
-  public static func uninstallSystemSymlink() {
+  /// Removes the `/usr/local/bin/<symlinkName>` symlink via the helper daemon.
+  public func uninstallSystemSymlink() {
     runHelperFlow { installer in
       try await installer.uninstall()
     }
@@ -144,10 +195,11 @@ public enum ServiceInstaller {
     }
   }
 
-  private static func runHelperFlow(
+  private func runHelperFlow(
     _ operation: @Sendable @escaping (SystemSymlinkInstaller) async throws -> HelperResponse,
   ) {
-    let installer = SystemSymlinkInstaller.live
+    let installer = systemSymlinkInstaller
+    let log = log
     let semaphore = DispatchSemaphore(value: 0)
 
     Task {
@@ -172,14 +224,14 @@ public enum ServiceInstaller {
 
   /// Removes any LaunchAgent installed by the pre-SMAppService code path so a fresh
   /// install doesn't leave two copies of the service registered.
-  private static func cleanUpLegacyAgent() {
+  private func cleanUpLegacyAgent() {
     if FileManager.default.fileExists(atPath: legacyPlistPath) {
-      run("/bin/launchctl", "bootout", "gui/\(uid)/\(MCPTap.serviceName)")
+      run("/bin/launchctl", "bootout", "gui/\(uid)/\(identity.serviceName)")
       try? FileManager.default.removeItem(atPath: legacyPlistPath)
     }
   }
 
-  private static func run(_ path: String, _ args: String...) {
+  private func run(_ path: String, _ args: String...) {
     let process = Process()
     process.executableURL = URL(fileURLWithPath: path)
     process.arguments = args

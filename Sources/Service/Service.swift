@@ -5,15 +5,19 @@ import os
 import XcodeMCPTapShared
 import XPC
 
-private let lifecycleLog = Logger(subsystem: MCPTap.serviceName, category: "service.lifecycle")
-private let xpcLog = Logger(subsystem: MCPTap.serviceName, category: "service.xpc")
-
 public enum ServiceMain {
-  public static func run() {
+  public static func run(identity: Identity) {
+    let lifecycleLog = Logger(subsystem: identity.serviceName, category: "service.lifecycle")
+    let xpcLog = Logger(subsystem: identity.serviceName, category: "service.xpc")
+
     lifecycleLog.notice("starting")
 
     let registry = ConnectionRegistry()
-    let statusEndpoint = StatusEndpoint(registry: registry)
+    let statusEndpoint = StatusEndpoint(
+      registry: registry,
+      serviceName: identity.serviceName,
+      statusServiceName: identity.statusServiceName,
+    )
 
     // Start mcpbridge at service startup (before dispatchMain).
     // mcpbridge cannot be spawned from XPC accept handlers — it fails
@@ -23,9 +27,13 @@ public enum ServiceMain {
     // connection so that if mcpbridge dies (e.g. Xcode wasn't running
     // on first spawn, or the user quit Xcode later) the next client
     // message drives a fresh subprocess without any external restart.
-    let router = MCPRouter(makeConnection: {
-      MCPConnection(exec: "/usr/bin/xcrun", "mcpbridge")
-    })
+    let router = MCPRouter(
+      serviceName: identity.serviceName,
+      clientName: identity.appDisplayName,
+      makeConnection: {
+        MCPConnection(serviceName: identity.serviceName, exec: "/usr/bin/xcrun", "mcpbridge")
+      },
+    )
 
     router.onToolsDiscovered = { tools in
       registry.updateTools(tools)
@@ -54,7 +62,7 @@ public enum ServiceMain {
 
     let listener: XPCListener
     do {
-      listener = try XPCListener(service: MCPTap.serviceName) { request in
+      listener = try XPCListener(service: identity.serviceName) { request in
         xpcLog.info("new XPC connection")
         let connectionID = UUID()
 

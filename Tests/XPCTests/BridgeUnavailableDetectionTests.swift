@@ -83,8 +83,10 @@ struct BridgeUnavailableDetectionTests {
   @Test func fakeTerminationNotificationFlipsRouterToFailed() async throws {
     let recorder = StatusRecorder()
     let router = MCPRouter(
+      serviceName: testServiceName,
+      clientName: "XcodeMCPTap",
       makeConnection: {
-        MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
+        MCPConnection(serviceName: testServiceName, exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
       },
     )
     router.onBridgeStateChanged = { recorder.append($0) }
@@ -126,8 +128,11 @@ struct BridgeUnavailableDetectionTests {
     let sleeper = ManualSleeper()
     let recorder = StatusRecorder()
     let router = MCPRouter(
+      serviceName: testServiceName,
+      clientName: "XcodeMCPTap",
       makeConnection: {
         MCPConnection(
+          serviceName: testServiceName,
           exec: "/usr/bin/python3",
           args: ["-u", Self.mockBridge, "--fail", "hang-after-init"],
         )

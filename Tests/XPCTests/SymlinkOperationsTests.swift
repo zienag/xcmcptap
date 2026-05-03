@@ -8,6 +8,7 @@ import XcodeMCPTapShared
 struct SymlinkOperationsTests {
   let workDir: URL
   let source: URL
+  let symlinks = SymlinkOperations(serviceName: testHelperServiceName)
 
   init() throws {
     let tmp = FileManager.default.temporaryDirectory
@@ -23,7 +24,7 @@ struct SymlinkOperationsTests {
   func installCreatesSymlinkPointingToSource() throws {
     let dest = workDir.appendingPathComponent("link").path
 
-    let response = SymlinkOperations.install(source: source.path, destination: dest)
+    let response = symlinks.install(source: source.path, destination: dest)
     #expect(response == .success)
 
     let resolved = try FileManager.default.destinationOfSymbolicLink(atPath: dest)
@@ -36,8 +37,8 @@ struct SymlinkOperationsTests {
     let otherSource = workDir.appendingPathComponent("other-source")
     try Data("other".utf8).write(to: otherSource)
 
-    _ = SymlinkOperations.install(source: otherSource.path, destination: dest)
-    let response = SymlinkOperations.install(source: source.path, destination: dest)
+    _ = symlinks.install(source: otherSource.path, destination: dest)
+    let response = symlinks.install(source: source.path, destination: dest)
 
     #expect(response == .success)
     let resolved = try FileManager.default.destinationOfSymbolicLink(atPath: dest)
@@ -48,7 +49,7 @@ struct SymlinkOperationsTests {
   func installFailsWhenParentDirectoryMissing() {
     let dest = workDir.appendingPathComponent("missing-dir/link").path
 
-    let response = SymlinkOperations.install(source: source.path, destination: dest)
+    let response = symlinks.install(source: source.path, destination: dest)
 
     guard case .failure = response else {
       Issue.record("expected failure, got \(response)")
@@ -59,9 +60,9 @@ struct SymlinkOperationsTests {
   @Test
   func removeDeletesSymlink() throws {
     let dest = workDir.appendingPathComponent("link").path
-    _ = SymlinkOperations.install(source: source.path, destination: dest)
+    _ = symlinks.install(source: source.path, destination: dest)
 
-    let response = SymlinkOperations.remove(destination: dest)
+    let response = symlinks.remove(destination: dest)
     #expect(response == .success)
     #expect(!FileManager.default.fileExists(atPath: dest))
   }
@@ -70,7 +71,7 @@ struct SymlinkOperationsTests {
   func removeIsIdempotentWhenDestinationAbsent() {
     let dest = workDir.appendingPathComponent("never-existed").path
 
-    let response = SymlinkOperations.remove(destination: dest)
+    let response = symlinks.remove(destination: dest)
     #expect(response == .success)
   }
 
@@ -79,7 +80,7 @@ struct SymlinkOperationsTests {
     let dest = workDir.appendingPathComponent("regular-file").path
     try Data("not a symlink".utf8).write(to: URL(fileURLWithPath: dest))
 
-    let response = SymlinkOperations.remove(destination: dest)
+    let response = symlinks.remove(destination: dest)
 
     guard case .failure = response else {
       Issue.record("expected failure for non-symlink, got \(response)")
@@ -92,14 +93,14 @@ struct SymlinkOperationsTests {
   func installEmitsLogUnderHelperSubsystem() async throws {
     let cutoff = Date()
     let dest = workDir.appendingPathComponent("link").path
-    _ = SymlinkOperations.install(source: source.path, destination: dest)
+    _ = symlinks.install(source: source.path, destination: dest)
 
     try await Task.sleep(for: .milliseconds(50))
 
     let store = try OSLogStore(scope: .currentProcessIdentifier)
     let entries = try store.getEntries(at: store.position(date: cutoff))
       .compactMap { $0 as? OSLogEntryLog }
-      .filter { $0.subsystem == MCPTap.helperServiceName && $0.category == "symlink" }
+      .filter { $0.subsystem == testHelperServiceName && $0.category == "symlink" }
 
     #expect(!entries.isEmpty, "Expected a symlink-category log entry; got \(entries.map(\.composedMessage))")
   }

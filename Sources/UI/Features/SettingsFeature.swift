@@ -16,6 +16,7 @@ public struct SettingsFeature {
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case copyResetElapsed(id: String)
+    case copyTapped(id: String, command: String)
     case delegate(Delegate)
     case installSystemPathTapped
     case installTapped
@@ -48,6 +49,17 @@ public struct SettingsFeature {
       switch action {
       case .binding:
         return .none
+
+      case let .copyTapped(id, command):
+        state.copiedIntegrationID = id
+        let clock = clock
+        let pasteboard = pasteboard
+        return .run { send in
+          pasteboard.copy(command)
+          try await clock.sleep(for: .seconds(1.2))
+          await send(.copyResetElapsed(id: id))
+        }
+        .cancellable(id: CancelID.copyReset, cancelInFlight: true)
 
       case let .revealAndCopyTapped(id, command, configPath):
         state.copiedIntegrationID = id

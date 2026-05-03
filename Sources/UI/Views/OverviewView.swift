@@ -56,7 +56,7 @@ public struct OverviewView: View {
       VStack(alignment: .leading, spacing: Spacing.hairline) {
         Text("Approval needed")
           .font(.headline)
-        Text("Turn on Xcode MCP Tap in Login Items to finish installing.")
+        Text("Turn on \(store.appDisplayName) in Login Items to finish installing.")
           .font(.caption)
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)

@@ -16,8 +16,10 @@ struct BridgeStatusEventTests {
   @Test func healthyBootTransitionsToReady() async throws {
     let recorder = StatusRecorder()
     let router = MCPRouter(
+      serviceName: testServiceName,
+      clientName: "XcodeMCPTap",
       makeConnection: {
-        MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
+        MCPConnection(serviceName: testServiceName, exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
       },
     )
     router.onBridgeStateChanged = { recorder.append($0) }
@@ -33,8 +35,11 @@ struct BridgeStatusEventTests {
   @Test func startupFailureTransitionsToFailed() async throws {
     let recorder = StatusRecorder()
     let router = MCPRouter(
+      serviceName: testServiceName,
+      clientName: "XcodeMCPTap",
       makeConnection: {
         MCPConnection(
+          serviceName: testServiceName,
           exec: "/usr/bin/python3",
           args: ["-u", Self.mockBridge, "--fail", "at-startup"],
         )
@@ -56,8 +61,11 @@ struct BridgeStatusEventTests {
   @Test func periodicPingDetectsHangingBridge() async throws {
     let recorder = StatusRecorder()
     let router = MCPRouter(
+      serviceName: testServiceName,
+      clientName: "XcodeMCPTap",
       makeConnection: {
         MCPConnection(
+          serviceName: testServiceName,
           exec: "/usr/bin/python3",
           args: ["-u", Self.mockBridge, "--fail", "hang-after-init"],
         )
@@ -86,8 +94,10 @@ struct BridgeStatusEventTests {
   @Test func markBridgeUnavailableForcesFailedTransition() async throws {
     let recorder = StatusRecorder()
     let router = MCPRouter(
+      serviceName: testServiceName,
+      clientName: "XcodeMCPTap",
       makeConnection: {
-        MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
+        MCPConnection(serviceName: testServiceName, exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
       },
     )
     router.onBridgeStateChanged = { recorder.append($0) }

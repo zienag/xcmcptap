@@ -16,8 +16,8 @@ final class RouterHarness: Sendable {
   init(exec: String, _ args: String...) {
     let capturedExec = exec
     let capturedArgs = args
-    router = MCPRouter(makeConnection: {
-      MCPConnection(exec: capturedExec, args: capturedArgs)
+    router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: {
+      MCPConnection(serviceName: testServiceName, exec: capturedExec, args: capturedArgs)
     })
     collector = ResponseCollector()
     clientID = router.registerClient { [collector] line in

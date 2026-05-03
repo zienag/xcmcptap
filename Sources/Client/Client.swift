@@ -4,16 +4,15 @@ import os
 import XcodeMCPTapShared
 import XPC
 
-private let log = Logger(subsystem: MCPTap.serviceName, category: "client")
-
 public enum ClientMain {
-  public static func run() {
+  public static func run(identity: Identity) {
+    let log = Logger(subsystem: identity.serviceName, category: "client")
     let stdout = MCPStdout()
 
     let session: XPCSession
     do {
       session = try XPCSession(
-        machService: MCPTap.serviceName,
+        machService: identity.serviceName,
         incomingMessageHandler: { (message: MCPLine) -> (any Encodable)? in
           Task { await stdout.send(message) }
           return nil

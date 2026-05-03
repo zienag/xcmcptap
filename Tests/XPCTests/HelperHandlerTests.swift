@@ -19,7 +19,7 @@ struct HelperHandlerTests {
   }
 
   private func makeHandler() -> HelperHandler {
-    HelperHandler(destination: destination)
+    HelperHandler(destination: destination, serviceName: "alfred.xcmcptap.test")
   }
 
   @Test
@@ -49,7 +49,7 @@ struct HelperHandlerTests {
   @Test
   func dispatchUsesInjectedDestinationNotSourcesChoice() throws {
     let alt = workDir.appendingPathComponent("alt-link").path
-    let handler = HelperHandler(destination: alt)
+    let handler = HelperHandler(destination: alt, serviceName: "alfred.xcmcptap.test")
 
     let response = handler.handle(.installSymlink(sourcePath: source.path))
     #expect(response == .success)

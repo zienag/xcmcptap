@@ -15,21 +15,33 @@ public struct ServiceInstallerClient: Sendable {
   public var plistPath: @Sendable () -> String = { "" }
 }
 
-extension ServiceInstallerClient: DependencyKey {
-  public static let liveValue = ServiceInstallerClient(
-    install: { ServiceInstaller.install() },
-    uninstall: { ServiceInstaller.uninstall() },
-    installSystemPath: { ServiceInstaller.installSystemSymlink() },
-    uninstallSystemPath: { ServiceInstaller.uninstallSystemSymlink() },
-    isInstalled: { ServiceInstaller.isInstalled() },
-    requiresApproval: { ServiceInstaller.requiresApproval() },
-    openLoginItems: { ServiceInstaller.openLoginItems() },
-    isOnSystemPath: { ServiceInstaller.isOnSystemPath() },
-    clientPath: { ServiceInstaller.clientLinkPath },
-    systemPath: { ServiceInstaller.systemLinkPath },
-    plistPath: { ServiceInstaller.plistPath },
-  )
+public extension ServiceInstallerClient {
+  /// Wires a `ServiceInstaller` (bound to the runtime build identity)
+  /// behind the dependency-injected protocol the UI talks to. The @main
+  /// wrapper calls `prepareDependencies { $0.serviceInstaller = .live(installer:) }`
+  /// at app startup with the build's identity.
+  static func live(installer: ServiceInstaller) -> ServiceInstallerClient {
+    ServiceInstallerClient(
+      install: { installer.install() },
+      uninstall: { installer.uninstall() },
+      installSystemPath: { installer.installSystemSymlink() },
+      uninstallSystemPath: { installer.uninstallSystemSymlink() },
+      isInstalled: { installer.isInstalled() },
+      requiresApproval: { installer.requiresApproval() },
+      openLoginItems: { installer.openLoginItems() },
+      isOnSystemPath: { installer.isOnSystemPath() },
+      clientPath: { installer.clientLinkPath },
+      systemPath: { installer.systemLinkPath },
+      plistPath: { installer.plistPath },
+    )
+  }
+}
 
+extension ServiceInstallerClient: DependencyKey {
+  /// The unconfigured liveValue — every operation is a no-op. Production
+  /// callers MUST replace it via `prepareDependencies { $0.serviceInstaller = .live(installer:) }`
+  /// before any UI reads the dependency.
+  public static let liveValue = ServiceInstallerClient()
   public static let testValue = ServiceInstallerClient()
 }
 

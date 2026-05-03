@@ -3,19 +3,19 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>alfred.xcmcptap</string>
+    <string>__SERVICE_NAME__</string>
     <key>BundleProgram</key>
     <string>Contents/MacOS/xcmcptapd</string>
     <key>MachServices</key>
     <dict>
-        <key>alfred.xcmcptap</key>
+        <key>__SERVICE_NAME__</key>
         <true/>
-        <key>alfred.xcmcptap.status</key>
+        <key>__SERVICE_NAME__.status</key>
         <true/>
     </dict>
     <key>AssociatedBundleIdentifiers</key>
     <array>
-        <string>alfred.xcmcptap</string>
+        <string>__SERVICE_NAME__</string>
     </array>
 </dict>
 </plist>

@@ -4,13 +4,17 @@ import class Foundation.FileManager
 import os
 import XcodeMCPTapShared
 
-private let log = Logger(subsystem: MCPTap.helperServiceName, category: "symlink")
+public struct SymlinkOperations: Sendable {
+  private let log: Logger
 
-public enum SymlinkOperations {
+  public init(serviceName: String) {
+    self.log = Logger(subsystem: serviceName, category: "symlink")
+  }
+
   /// Creates a symlink at `destination` pointing to `source`. If `destination`
   /// already exists and is a symlink, it's replaced (idempotent). If it's a
   /// regular file or directory, the call fails.
-  public static func install(source: String, destination: String) -> HelperResponse {
+  public func install(source: String, destination: String) -> HelperResponse {
     let fm = FileManager.default
 
     if let existing = try? fm.attributesOfItem(atPath: destination) {
@@ -43,7 +47,7 @@ public enum SymlinkOperations {
   /// Removes the symlink at `destination`. Returns success if the destination
   /// is a symlink (deletes it) or doesn't exist (no-op). Fails if the path
   /// exists but isn't a symlink.
-  public static func remove(destination: String) -> HelperResponse {
+  public func remove(destination: String) -> HelperResponse {
     let fm = FileManager.default
 
     guard let attrs = try? fm.attributesOfItem(atPath: destination) else {

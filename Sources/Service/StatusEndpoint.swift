@@ -5,15 +5,19 @@ import XPC
 
 public final class StatusEndpoint: Sendable {
   private let registry: ConnectionRegistry
+  private let serviceName: String
+  private let statusServiceName: String
   private let sessions = Mutex<[UUID: XPCSession]>([:])
 
-  public init(registry: ConnectionRegistry) {
+  public init(registry: ConnectionRegistry, serviceName: String, statusServiceName: String) {
     self.registry = registry
+    self.serviceName = serviceName
+    self.statusServiceName = statusServiceName
   }
 
   public func start() throws -> XPCListener {
     let listener = try XPCListener(
-      service: MCPTap.statusServiceName,
+      service: statusServiceName,
     ) { [self] request in
       let sessionID = UUID()
 

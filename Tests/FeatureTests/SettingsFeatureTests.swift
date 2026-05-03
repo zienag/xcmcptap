@@ -5,6 +5,34 @@ import XcodeMCPTapUI
 @MainActor
 struct SettingsFeatureTests {
   @Test
+  func copyTappedCopiesAndResetsAfterDelay() async {
+    let clock = TestClock()
+    let copiedStrings = LockIsolated<[String]>([])
+
+    let store = TestStore(initialState: SettingsFeature.State()) {
+      SettingsFeature()
+    } withDependencies: {
+      $0.continuousClock = clock
+      $0.pasteboard.copy = { string in
+        copiedStrings.withValue { $0.append(string) }
+      }
+    }
+
+    let command = "claude mcp add --transport stdio xcode -- /tmp/xcmcptap"
+    await store.send(.copyTapped(id: "claude", command: command)) {
+      $0.copiedIntegrationID = "claude"
+    }
+
+    await clock.advance(by: .seconds(1.2))
+
+    await store.receive(\.copyResetElapsed) {
+      $0.copiedIntegrationID = nil
+    }
+
+    #expect(copiedStrings.value == [command])
+  }
+
+  @Test
   func revealAndCopyTriggersBothEffectsAndResetsAfterDelay() async {
     let clock = TestClock()
     let copiedStrings = LockIsolated<[String]>([])

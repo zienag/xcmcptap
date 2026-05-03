@@ -2,17 +2,19 @@ import XcodeMCPTapShared
 
 public struct HelperHandler: Sendable {
   public var destination: String
+  private let symlinks: SymlinkOperations
 
-  public init(destination: String) {
+  public init(destination: String, serviceName: String) {
     self.destination = destination
+    self.symlinks = SymlinkOperations(serviceName: serviceName)
   }
 
   public func handle(_ request: HelperRequest) -> HelperResponse {
     switch request {
     case let .installSymlink(sourcePath):
-      SymlinkOperations.install(source: sourcePath, destination: destination)
+      symlinks.install(source: sourcePath, destination: destination)
     case .removeSymlink:
-      SymlinkOperations.remove(destination: destination)
+      symlinks.remove(destination: destination)
     case .status:
       .success
     }

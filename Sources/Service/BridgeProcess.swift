@@ -1,8 +1,5 @@
 import Darwin.C
 import os
-import XcodeMCPTapShared
-
-private let log = Logger(subsystem: MCPTap.serviceName, category: "bridge")
 
 struct BridgeProcess<Transport: PipeTransport>: ~Copyable, Sendable {
   private let exec: String
@@ -12,6 +9,7 @@ struct BridgeProcess<Transport: PipeTransport>: ~Copyable, Sendable {
   private let stderr: AsyncStream<[UInt8]>.Continuation
   private let pid: AsyncStream<pid_t>.Continuation
   private let transport: Transport
+  private let log: Logger
 
   init(
     exec: String,
@@ -21,6 +19,7 @@ struct BridgeProcess<Transport: PipeTransport>: ~Copyable, Sendable {
     stderr: AsyncStream<[UInt8]>.Continuation,
     pid: AsyncStream<pid_t>.Continuation,
     transport: Transport,
+    serviceName: String,
   ) {
     self.exec = exec
     self.args = args
@@ -29,6 +28,7 @@ struct BridgeProcess<Transport: PipeTransport>: ~Copyable, Sendable {
     self.stderr = stderr
     self.pid = pid
     self.transport = transport
+    self.log = Logger(subsystem: serviceName, category: "bridge")
   }
 
   func run() async {
@@ -39,6 +39,7 @@ struct BridgeProcess<Transport: PipeTransport>: ~Copyable, Sendable {
     let pidSink = pid
     let inStream = input
     let transport = transport
+    let log = log
 
     defer {
       out.finish()

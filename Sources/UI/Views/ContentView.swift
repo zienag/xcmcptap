@@ -35,7 +35,7 @@ public struct ContentView: View {
       }
     }
     .listStyle(.sidebar)
-    .navigationTitle("Xcode MCP Tap")
+    .navigationTitle(store.appDisplayName)
     .safeAreaInset(edge: .bottom, spacing: 0) {
       sidebarFooter
     }

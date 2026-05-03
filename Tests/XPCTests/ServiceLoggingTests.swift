@@ -52,6 +52,6 @@ struct ServiceLoggingTests {
     let position = store.position(date: cutoff)
     return try store.getEntries(at: position)
       .compactMap { $0 as? OSLogEntryLog }
-      .filter { $0.subsystem == MCPTap.serviceName && $0.category == "router" }
+      .filter { $0.subsystem == testServiceName && $0.category == "router" }
   }
 }

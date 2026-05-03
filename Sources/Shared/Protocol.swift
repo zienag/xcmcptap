@@ -1,10 +1,47 @@
 import struct Foundation.Date
 import struct Foundation.UUID
 
-public enum MCPTap {
-  public static let serviceName = "alfred.xcmcptap"
-  public static let statusServiceName = "alfred.xcmcptap.status"
-  public static let helperServiceName = "alfred.xcmcptap.helper"
+// MARK: - Build Identity
+
+/// Per-variant identifiers (bundle id, display name, CLI symlink name)
+/// passed in at process entry. SPM library code is identity-agnostic —
+/// it never reaches for a global, it just uses what it's handed. The
+/// concrete values come from `BuildConfig/Identity.xcconfig` and reach
+/// the @main wrappers via a generated `BuildConfig.swift` that's only
+/// compiled into the Xcode-native targets in `App/`.
+public struct Identity: Sendable, Equatable {
+  /// The bundle identifier — the keystone everything else hangs off of.
+  /// Production: `alfred.xcmcptap`. Debug: `alfred.xcmcptap.debug`.
+  public let serviceName: String
+
+  /// User-visible app name. Production: `Xcode MCP Tap`.
+  /// Debug: `Xcode MCP Tap Debug`.
+  public let appDisplayName: String
+
+  /// The leaf name of the CLI symlink installed at `~/.local/bin/<name>`
+  /// and `/usr/local/bin/<name>`. Production: `xcmcptap`.
+  /// Debug: `xcmcptap-debug`.
+  public let symlinkName: String
+
+  public init(serviceName: String, appDisplayName: String, symlinkName: String) {
+    self.serviceName = serviceName
+    self.appDisplayName = appDisplayName
+    self.symlinkName = symlinkName
+  }
+
+  /// Mach service name for the read-only status endpoint.
+  public var statusServiceName: String { "\(serviceName).status" }
+
+  /// Mach service name for the privileged helper.
+  public var helperServiceName: String { "\(serviceName).helper" }
+
+  /// File name (not path) of the LaunchAgent plist shipped inside
+  /// `Contents/Library/LaunchAgents/`.
+  public var agentPlistName: String { "\(serviceName).plist" }
+
+  /// File name (not path) of the helper LaunchDaemon plist shipped
+  /// inside `Contents/Library/LaunchDaemons/`.
+  public var helperPlistName: String { "\(helperServiceName).plist" }
 }
 
 // MARK: - Privileged Helper Protocol

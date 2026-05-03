@@ -6,6 +6,10 @@ options:
   projectFormat: xcode16_0
   defaultSourceDirectoryType: syncedFolder
 
+configFiles:
+  Debug: BuildConfig/Identity.xcconfig
+  Release: BuildConfig/Identity.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "6"
@@ -36,18 +40,30 @@ targets:
           - xcmcptap
           - xcmcptapd
           - xcmcptap-helper
-          - LaunchAgents
-          - LaunchDaemons
-      - path: App/LaunchAgents/alfred.xcmcptap.plist
-        buildPhase:
-          copyFiles:
-            destination: wrapper
-            subpath: Contents/Library/LaunchAgents
-      - path: App/LaunchDaemons/alfred.xcmcptap.helper.plist
-        buildPhase:
-          copyFiles:
-            destination: wrapper
-            subpath: Contents/Library/LaunchDaemons
+      - path: $(DERIVED_FILE_DIR)/BuildConfig.swift
+        type: file
+        optional: true
+    preBuildScripts:
+      - name: Generate BuildConfig.swift
+        script: "$SRCROOT/scripts/gen-build-config.sh"
+        inputFiles:
+          - $(SRCROOT)/BuildConfig/Identity.xcconfig
+          - $(SRCROOT)/scripts/gen-build-config.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/BuildConfig.swift
+        basedOnDependencyAnalysis: true
+      - name: Install bundle LaunchAgent + LaunchDaemon plists
+        script: "$SRCROOT/scripts/install-bundle-plists.sh"
+        inputFiles:
+          - $(SRCROOT)/BuildConfig/Identity.xcconfig
+          - $(SRCROOT)/BuildConfig/agent.plist.template
+          - $(SRCROOT)/BuildConfig/helper.plist.template
+          - $(SRCROOT)/scripts/install-bundle-plists.sh
+        # No outputFiles: the script writes into ${BUILT_PRODUCTS_DIR}/
+        # under a name only known at build time, so we cannot pre-declare
+        # them. basedOnDependencyAnalysis=false forces every-build re-run,
+        # which is cheap (a sed + a few KB written to the bundle).
+        basedOnDependencyAnalysis: false
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapUI
@@ -69,19 +85,30 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleIconName: AppIcon
-        CFBundleName: Xcode MCP Tap
+        CFBundleIconName: $(XCMCPTAP_ICON_NAME)
+        CFBundleName: $(XCMCPTAP_APP_DISPLAY_NAME)
+        CFBundleDisplayName: $(XCMCPTAP_APP_DISPLAY_NAME)
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: alfred.xcmcptap
-        PRODUCT_NAME: Xcode MCP Tap
         ENABLE_HARDENED_RUNTIME: YES
 
   xcmcptap:
     type: tool
     platform: macOS
     sources:
-      - App/xcmcptap
+      - path: App/xcmcptap
+      - path: $(DERIVED_FILE_DIR)/BuildConfig.swift
+        type: file
+        optional: true
+    preBuildScripts:
+      - name: Generate BuildConfig.swift
+        script: "$SRCROOT/scripts/gen-build-config.sh"
+        inputFiles:
+          - $(SRCROOT)/BuildConfig/Identity.xcconfig
+          - $(SRCROOT)/scripts/gen-build-config.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/BuildConfig.swift
+        basedOnDependencyAnalysis: true
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapClient
@@ -95,7 +122,19 @@ targets:
     type: tool
     platform: macOS
     sources:
-      - App/xcmcptapd
+      - path: App/xcmcptapd
+      - path: $(DERIVED_FILE_DIR)/BuildConfig.swift
+        type: file
+        optional: true
+    preBuildScripts:
+      - name: Generate BuildConfig.swift
+        script: "$SRCROOT/scripts/gen-build-config.sh"
+        inputFiles:
+          - $(SRCROOT)/BuildConfig/Identity.xcconfig
+          - $(SRCROOT)/scripts/gen-build-config.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/BuildConfig.swift
+        basedOnDependencyAnalysis: true
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapService
@@ -109,7 +148,19 @@ targets:
     type: tool
     platform: macOS
     sources:
-      - App/xcmcptap-helper
+      - path: App/xcmcptap-helper
+      - path: $(DERIVED_FILE_DIR)/BuildConfig.swift
+        type: file
+        optional: true
+    preBuildScripts:
+      - name: Generate BuildConfig.swift
+        script: "$SRCROOT/scripts/gen-build-config.sh"
+        inputFiles:
+          - $(SRCROOT)/BuildConfig/Identity.xcconfig
+          - $(SRCROOT)/scripts/gen-build-config.sh
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/BuildConfig.swift
+        basedOnDependencyAnalysis: true
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapHelper

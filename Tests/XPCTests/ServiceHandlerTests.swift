@@ -11,8 +11,8 @@ struct ServiceHandlerTests {
     // stays in `.booting` and the client message is queued. That's enough
     // to exercise the registry update — we don't need a live bridge to
     // verify the PID path.
-    let router = MCPRouter(makeConnection: {
-      MCPConnection(exec: "/usr/bin/true")
+    let router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: {
+      MCPConnection(serviceName: testServiceName, exec: "/usr/bin/true")
     })
     let id = UUID()
     _ = registry.register(id: id, clientPID: 0)
@@ -31,8 +31,8 @@ struct ServiceHandlerTests {
 
   @Test func handlerLeavesClientPIDUntouchedWhenMessageHasNone() throws {
     let registry = ConnectionRegistry()
-    let router = MCPRouter(makeConnection: {
-      MCPConnection(exec: "/usr/bin/true")
+    let router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: {
+      MCPConnection(serviceName: testServiceName, exec: "/usr/bin/true")
     })
     let id = UUID()
     _ = registry.register(id: id, clientPID: 1234)
@@ -50,8 +50,8 @@ struct ServiceHandlerTests {
 
   @Test func handlerIgnoresZeroClientPID() throws {
     let registry = ConnectionRegistry()
-    let router = MCPRouter(makeConnection: {
-      MCPConnection(exec: "/usr/bin/true")
+    let router = MCPRouter(serviceName: testServiceName, clientName: "XcodeMCPTap", makeConnection: {
+      MCPConnection(serviceName: testServiceName, exec: "/usr/bin/true")
     })
     let id = UUID()
     _ = registry.register(id: id, clientPID: 1234)

@@ -3,6 +3,6 @@ import XcodeMCPTapHelper
 @main
 enum XcmcptapHelper {
   static func main() {
-    HelperMain.run()
+    HelperMain.run(identity: BuildConfig.identity)
   }
 }

@@ -46,12 +46,12 @@ public struct SettingsView: View {
   private var integrationsCard: some View {
     VStack(alignment: .leading, spacing: Spacing.s) {
       SectionLabel("Integrations")
-      Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.m, verticalSpacing: Spacing.s) {
+      VStack(alignment: .leading, spacing: Spacing.s) {
         let integrations = store.integrations
         ForEach(Array(integrations.enumerated()), id: \.element.id) { index, integration in
           integrationRow(integration)
           if index != integrations.count - 1 {
-            Divider().gridCellUnsizedAxes(.horizontal)
+            Divider()
           }
         }
       }
@@ -63,41 +63,51 @@ public struct SettingsView: View {
   @ViewBuilder
   private func integrationRow(_ integration: Integration) -> some View {
     let copied = store.settings.copiedIntegrationID == integration.id
-    GridRow(alignment: .firstTextBaseline) {
-      Text(integration.displayName)
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
-        .lineLimit(1)
-        .minimumScaleFactor(0.85)
-        .gridColumnAlignment(.leading)
+    VStack(alignment: .leading, spacing: Spacing.xs) {
+      HStack(alignment: .firstTextBaseline, spacing: Spacing.s) {
+        Text(integration.displayName)
+          .font(.caption.weight(.medium))
+          .foregroundStyle(.secondary)
+        Spacer(minLength: Spacing.s)
+        Button {
+          store.send(.settings(.copyTapped(id: integration.id, command: integration.text)))
+        } label: {
+          Label(
+            copied ? "Copied" : "Copy",
+            systemImage: copied ? "checkmark" : "doc.on.doc",
+          )
+          .fixedSize()
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(copied ? .green : .accentColor)
+        .help("Copy the command to the clipboard")
+        .animation(.easeInOut(duration: 0.15), value: copied)
+
+        Button {
+          store.send(
+            .settings(
+              .revealAndCopyTapped(
+                id: integration.id,
+                command: integration.text,
+                configPath: integration.configPath,
+              ),
+            ),
+          )
+        } label: {
+          Label("Reveal config and copy snippet", systemImage: "arrow.up.right.square")
+            .fixedSize()
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help("Reveal \(integration.configPath) in Finder and copy the snippet")
+      }
       Text(integration.text)
         .font(.system(.caption, design: .monospaced))
-        .lineLimit(1)
-        .truncationMode(.middle)
         .textSelection(.enabled)
+        .lineLimit(nil)
+        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
-      Button {
-        store.send(
-          .settings(
-            .revealAndCopyTapped(
-              id: integration.id,
-              command: integration.text,
-              configPath: integration.configPath,
-            ),
-          ),
-        )
-      } label: {
-        Label(
-          copied ? "Copied" : "Reveal",
-          systemImage: copied ? "checkmark" : "arrow.up.right.square",
-        )
-        .fixedSize()
-      }
-      .buttonStyle(.bordered)
-      .controlSize(.small)
-      .tint(copied ? .green : .accentColor)
-      .help("Reveal \(integration.configPath) in Finder and copy the snippet to the clipboard")
-      .animation(.easeInOut(duration: 0.15), value: copied)
     }
   }
 

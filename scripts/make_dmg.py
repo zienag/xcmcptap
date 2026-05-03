@@ -39,9 +39,12 @@ import tempfile
 
 from ds_store import DSStore
 
-APP_NAME = "Xcode MCP Tap.app"
-SIGN_IDENTITY = "Developer ID Application: Alfred Zien (GU3RT64VWG)"
-APP_BUNDLE = REPO / ".build" / "Release" / APP_NAME
+# Identity values are sourced from `scripts/_config.sh` and exported by
+# the caller (install.sh). Falls back to the production Release defaults
+# so manual invocation still works.
+APP_NAME = os.environ.get("APP_NAME") or "Xcode MCP Tap.app"
+SIGN_IDENTITY = os.environ.get("SIGN_IDENTITY") or "Developer ID Application: Alfred Zien (GU3RT64VWG)"
+APP_BUNDLE = Path(os.environ.get("APP_BUNDLE") or (REPO / ".build" / "Release" / APP_NAME))
 DMG_PATH = REPO / ".build" / "XcodeMCPTap.dmg"
 VOLUME_NAME = "XcodeMCPTap"
 

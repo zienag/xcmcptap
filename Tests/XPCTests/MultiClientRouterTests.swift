@@ -21,8 +21,8 @@ struct MultiClientRouterTests {
     a: (id: UUID, responses: ResponseCollector),
     b: (id: UUID, responses: ResponseCollector),
   ) {
-    let connection = MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
-    let router = MCPRouter(connection: connection)
+    let connection = MCPConnection(serviceName: testServiceName, exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
+    let router = MCPRouter(serviceName: testServiceName, clientName: testIdentity.appDisplayName, connection: connection)
     let collectorA = ResponseCollector()
     let collectorB = ResponseCollector()
     let idA = router.registerClient { [collectorA] line in
@@ -149,8 +149,8 @@ struct MultiClientRouterTests {
   /// init handshake must still receive the cached `initialize` response
   /// when it issues its own handshake.
   @Test func lateClientReceivesCachedInit() async throws {
-    let connection = MCPConnection(exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
-    let router = MCPRouter(connection: connection)
+    let connection = MCPConnection(serviceName: testServiceName, exec: "/usr/bin/python3", args: ["-u", Self.mockBridge])
+    let router = MCPRouter(serviceName: testServiceName, clientName: testIdentity.appDisplayName, connection: connection)
     defer { Task { await connection.terminate() } }
 
     let firstResponses = ResponseCollector()

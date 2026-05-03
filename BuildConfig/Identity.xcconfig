@@ -1,0 +1,34 @@
+// Single source of truth for build identity.
+//
+// Hand-edited. Consumed by:
+//   * project.yml -> XcodeMCPTap target's configFiles, drives Xcode build
+//     settings (PRODUCT_BUNDLE_IDENTIFIER, PRODUCT_NAME,
+//     ASSETCATALOG_COMPILER_APPICON_NAME).
+//   * IdentityGenerator (Sources/IdentityGenerator), invoked by the
+//     GenerateIdentity SwiftPM build-tool plugin and by the App target's
+//     pre-build script. Emits BuildConfig.swift (with #if DEBUG swap) and
+//     substitutes BuildConfig/*.plist.template into the .app bundle.
+//   * scripts/_config.sh, via scripts/identity.sh which extracts values for
+//     a given variant.
+//
+// To add or change identity values: edit ONLY this file. Do not edit
+// generated artifacts (they live in DerivedData / SwiftPM plugin output).
+
+XCMCPTAP_SERVICE_NAME[config=Debug]   = alfred.xcmcptap.dev
+XCMCPTAP_SERVICE_NAME[config=Release] = alfred.xcmcptap
+
+XCMCPTAP_PRODUCT_NAME[config=Debug]   = Xcode MCP Tap Dev
+XCMCPTAP_PRODUCT_NAME[config=Release] = Xcode MCP Tap
+
+XCMCPTAP_APP_DISPLAY_NAME[config=Debug]   = Xcode MCP Tap Dev
+XCMCPTAP_APP_DISPLAY_NAME[config=Release] = Xcode MCP Tap
+
+XCMCPTAP_ICON_NAME[config=Debug]   = AppIcon-Dev
+XCMCPTAP_ICON_NAME[config=Release] = AppIcon
+
+XCMCPTAP_SYMLINK_NAME[config=Debug]   = xcmcptap-dev
+XCMCPTAP_SYMLINK_NAME[config=Release] = xcmcptap
+
+PRODUCT_BUNDLE_IDENTIFIER          = $(XCMCPTAP_SERVICE_NAME)
+PRODUCT_NAME                       = $(XCMCPTAP_PRODUCT_NAME)
+ASSETCATALOG_COMPILER_APPICON_NAME = $(XCMCPTAP_ICON_NAME)

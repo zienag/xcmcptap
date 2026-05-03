@@ -8,11 +8,15 @@ import os
 import Synchronization
 import XcodeMCPTapShared
 
-private let log = Logger(subsystem: MCPTap.serviceName, category: "router")
-
 public final class MCPRouter: Sendable {
   public typealias Sleeper = @Sendable (Duration) async -> Void
 
+  private let log: Logger
+  /// Client name advertised in the MCP `initialize` handshake. Xcode
+  /// displays this string in its "<X> wants to use Xcode's tools"
+  /// permission dialog, so it must vary per build variant — Release
+  /// passes "Xcode MCP Tap", Dev passes "Xcode MCP Tap Dev".
+  private let clientName: String
   private let makeConnection: @Sendable () -> MCPConnection
   private let state = Mutex(State())
   private let healthPingInterval: Duration
@@ -130,6 +134,8 @@ public final class MCPRouter: Sendable {
   /// come back within `timeout`. Defaults are tuned for production;
   /// tests override to millisecond scale.
   public init(
+    serviceName: String,
+    clientName: String,
     makeConnection: @Sendable @escaping () -> MCPConnection,
     healthPingInterval: Duration = .seconds(30),
     healthPingTimeout: Duration = .seconds(10),
@@ -137,6 +143,8 @@ public final class MCPRouter: Sendable {
       try? await Task.sleep(for: duration)
     },
   ) {
+    self.log = Logger(subsystem: serviceName, category: "router")
+    self.clientName = clientName
     self.makeConnection = makeConnection
     self.healthPingInterval = healthPingInterval
     self.healthPingTimeout = healthPingTimeout
@@ -147,9 +155,13 @@ public final class MCPRouter: Sendable {
   /// MCPConnection and never exercise respawn. Any recovery path will
   /// re-use the same dead connection, which is fine for tests that
   /// stay in `.ready`.
-  public convenience init(connection: MCPConnection) {
+  public convenience init(
+    serviceName: String,
+    clientName: String,
+    connection: MCPConnection,
+  ) {
     let captured = connection
-    self.init(makeConnection: { captured })
+    self.init(serviceName: serviceName, clientName: clientName, makeConnection: { captured })
   }
 
   public func start() {
@@ -297,7 +309,7 @@ public final class MCPRouter: Sendable {
       let initResponse = try await connection.request(
         method: "initialize",
         params: MCPProtocol.initializeParams(
-          clientName: "XcodeMCPTap",
+          clientName: clientName,
           clientVersion: "1.0",
         ),
       )
