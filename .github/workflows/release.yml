@@ -247,13 +247,13 @@ jobs:
 
             # Tear down the agent + any system symlink while the .app is still
             # on disk (SMAppService.unregister needs the bundle present).
+            # This runs as the user and handles both the SMAppService agent
+            # and any privileged helper-daemon-installed `/usr/local/bin`
+            # symlink without prompting for sudo.
             uninstall_preflight do
               system_command "#{appdir}/Xcode MCP Tap.app/Contents/MacOS/xcmcptap",
                              args: ["uninstall"]
             end
-
-            uninstall launchctl: "alfred.xcmcptap",
-                      delete:    "/usr/local/bin/xcmcptap"
 
             zap trash: [
               "~/Library/LaunchAgents/alfred.xcmcptap.plist",
