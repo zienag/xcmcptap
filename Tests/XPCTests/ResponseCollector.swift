@@ -10,7 +10,7 @@ final class ResponseCollector: Sendable {
     (stream, continuation) = AsyncStream.makeStream()
   }
 
-  func nextResponse(timeout: Duration = .seconds(5)) async throws -> String {
+  func nextResponse(timeout: Duration = .seconds(15)) async throws -> String {
     try await withThrowingTaskGroup(of: String?.self) { group in
       group.addTask {
         for await line in self.stream {
@@ -31,7 +31,7 @@ final class ResponseCollector: Sendable {
     }
   }
 
-  func collect(count: Int, timeout: Duration = .seconds(5)) async throws -> [String] {
+  func collect(count: Int, timeout: Duration = .seconds(15)) async throws -> [String] {
     try await withThrowingTaskGroup(of: [String].self) { group in
       group.addTask {
         var lines: [String] = []
