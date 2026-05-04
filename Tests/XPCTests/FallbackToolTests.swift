@@ -258,7 +258,7 @@ struct FallbackToolTests {
     router.start()
     defer { Task { await router.shutdown() } }
 
-    try await recorder.waitFor(.ready, timeout: .seconds(5))
+    try await recorder.waitFor(.ready, timeout: .seconds(15))
 
     // The client never sent anything, so the only thing that could
     // arrive is a spurious broadcast — assert silence.

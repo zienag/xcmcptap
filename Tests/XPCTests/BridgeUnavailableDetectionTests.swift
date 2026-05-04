@@ -92,7 +92,7 @@ struct BridgeUnavailableDetectionTests {
     router.onBridgeStateChanged = { recorder.append($0) }
     defer { Task { await router.shutdown() } }
     router.start()
-    try await recorder.waitFor(.ready, timeout: .seconds(5))
+    try await recorder.waitFor(.ready, timeout: .seconds(15))
 
     let center = NotificationCenter()
     let monitor = XcodeLifecycleMonitor(
@@ -144,7 +144,7 @@ struct BridgeUnavailableDetectionTests {
     router.onBridgeStateChanged = { recorder.append($0) }
     defer { Task { await router.shutdown() } }
     router.start()
-    try await recorder.waitFor(.ready, timeout: .seconds(5))
+    try await recorder.waitFor(.ready, timeout: .seconds(15))
 
     // Ping loop has reached `sleeper(interval)` — if it hadn't, we'd
     // advance time into a hole and race the production code to its

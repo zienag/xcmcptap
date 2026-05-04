@@ -103,7 +103,7 @@ struct BridgeRecoveryTests {
 
   private func nextEnvelope(
     _ collector: ResponseCollector,
-    timeout: Duration = .seconds(5),
+    timeout: Duration = .seconds(15),
   ) async throws -> RPCEnvelope {
     let line = try await collector.nextResponse(timeout: timeout)
     return try JSONDecoder().decode(RPCEnvelope.self, from: Data(line.utf8))

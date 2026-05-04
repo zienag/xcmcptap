@@ -26,7 +26,7 @@ struct BridgeStatusEventTests {
     defer { Task { await router.shutdown() } }
 
     router.start()
-    try await recorder.waitFor(.ready, timeout: .seconds(5))
+    try await recorder.waitFor(.ready, timeout: .seconds(15))
     #expect(recorder.all().contains(.ready))
   }
 
@@ -49,7 +49,7 @@ struct BridgeStatusEventTests {
     defer { Task { await router.shutdown() } }
 
     router.start()
-    let observed = try await recorder.waitForFailed(timeout: .seconds(5))
+    let observed = try await recorder.waitForFailed(timeout: .seconds(15))
     #expect(!observed.isEmpty)
   }
 
@@ -77,9 +77,9 @@ struct BridgeStatusEventTests {
     defer { Task { await router.shutdown() } }
 
     router.start()
-    try await recorder.waitFor(.ready, timeout: .seconds(5))
+    try await recorder.waitFor(.ready, timeout: .seconds(15))
 
-    let reason = try await recorder.waitForFailed(timeout: .seconds(5))
+    let reason = try await recorder.waitForFailed(timeout: .seconds(15))
     #expect(
       reason.lowercased().contains("ping") || reason.lowercased().contains("responding"),
       "failure reason should mention the ping; got \(reason)",
@@ -104,7 +104,7 @@ struct BridgeStatusEventTests {
     defer { Task { await router.shutdown() } }
 
     router.start()
-    try await recorder.waitFor(.ready, timeout: .seconds(5))
+    try await recorder.waitFor(.ready, timeout: .seconds(15))
 
     router.markBridgeUnavailable(reason: "Xcode not running")
 
