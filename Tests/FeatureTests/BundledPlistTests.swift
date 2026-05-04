@@ -28,20 +28,20 @@ struct BundledPlistTests {
     )
   }
 
-  /// The Homebrew cask published by `release.yml` must declare the
-  /// (Release-variant) LaunchAgent's `Label` under `uninstall launchctl:`.
-  /// Without it, `brew upgrade --cask` swaps the .app bundle while the
-  /// old `xcmcptapd` keeps running with the previous binary mmap'd — so
-  /// users stay on the old version until they log out or `bootout` the
-  /// label by hand.
+  /// The cask must run `xcmcptap uninstall` from `uninstall_preflight` so
+  /// `brew upgrade --cask` stops the running agent before swapping the
+  /// bundle — otherwise the old `xcmcptapd` keeps the previous binary
+  /// mmap'd and users stay on the old version until they log out or
+  /// `bootout` the label by hand.
   ///
-  /// The daemon label is intentionally **not** required here: brew would
-  /// need `sudo` to tear down a system-domain job, and a GUI-spawned
-  /// brew has no TTY. The privileged helper handles daemon teardown over
-  /// its existing XPC path.
+  /// We enforce the preflight (and the subcommand it invokes) instead of
+  /// the older `uninstall launchctl:` directive: the directive used to
+  /// probe both user and system launchd domains, prompting for `sudo`
+  /// even though the agent only ever lives in the user domain. The
+  /// preflight's `xcmcptap uninstall` calls `SMAppService.agent.unregister()`
+  /// which stops the running job cleanly under the user's login session.
   @Test
-  func caskDeclaresAgentLabelForUpgradeReload() throws {
-    let releaseLabel = try releaseServiceName()
+  func caskTearsDownAgentBeforeBundleSwap() throws {
     let workflow = try String(
       contentsOf: packageRootURL().appendingPathComponent(".github/workflows/release.yml"),
       encoding: .utf8,
@@ -51,17 +51,27 @@ struct BundledPlistTests {
       "Could not locate the cask heredoc in .github/workflows/release.yml",
     )
     #expect(
-      caskBlock.contains("uninstall launchctl:"),
+      caskBlock.contains("uninstall_preflight do"),
       """
-      The cask must include an `uninstall launchctl:` stanza so `brew upgrade --cask`
-      stops the agent before swapping the bundle. Add it to the heredoc in release.yml.
+      The cask must include an `uninstall_preflight do … end` block in the heredoc
+      in release.yml — that's how the running agent gets bootout'd before brew swaps
+      the .app bundle.
       """,
     )
     #expect(
-      caskBlock.contains("\"\(releaseLabel)\""),
+      caskBlock.contains("args: [\"uninstall\"]"),
       """
-      The cask must reference the agent's Label (\"\(releaseLabel)\") under `uninstall launchctl:`,
-      otherwise the running agent keeps the old binary alive after `brew upgrade --cask`.
+      `uninstall_preflight` must invoke the bundled `xcmcptap` binary with the
+      `uninstall` subcommand so `SMAppService.agent.unregister()` runs against
+      the still-on-disk bundle.
+      """,
+    )
+    #expect(
+      !caskBlock.contains("uninstall launchctl:"),
+      """
+      Drop the legacy `uninstall launchctl:` directive — it probes the system
+      launchd domain too, prompting for `sudo` during normal `brew upgrade`. The
+      `uninstall_preflight` flow above replaces it.
       """,
     )
   }
@@ -87,23 +97,6 @@ struct BundledPlistTests {
       .deletingLastPathComponent() // Tests/FeatureTests/
       .deletingLastPathComponent() // Tests/
       .deletingLastPathComponent() // package root
-  }
-
-  /// Reads the Release `XCMCPTAP_SERVICE_NAME` from `BuildConfig/Identity.xcconfig`.
-  /// Used to compute the LaunchAgent label that the cask must reference.
-  /// Splits on the first ` = ` (with spaces) — the qualifier `[config=Release]`
-  /// uses `=` without surrounding spaces, so this avoids misparsing.
-  private func releaseServiceName() throws -> String {
-    let url = packageRootURL().appendingPathComponent("BuildConfig/Identity.xcconfig")
-    let xcconfig = try String(contentsOf: url, encoding: .utf8)
-    let prefix = "XCMCPTAP_SERVICE_NAME[config=Release]"
-    let separator = " = "
-    for line in xcconfig.split(separator: "\n") {
-      guard line.hasPrefix(prefix) else { continue }
-      guard let range = line.range(of: separator) else { continue }
-      return String(line[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-    }
-    throw IdentityXcconfigError.releaseServiceNameMissing
   }
 
   private func assertBundleProgram(
@@ -133,7 +126,4 @@ struct BundledPlistTests {
     )
   }
 
-  private enum IdentityXcconfigError: Error {
-    case releaseServiceNameMissing
-  }
 }

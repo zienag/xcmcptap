@@ -155,8 +155,11 @@ public struct ServiceInstaller: Sendable {
   public func uninstall() {
     // Tear down system symlink + helper daemon before the main agent so the
     // helper still has a live Mach service connection to receive the remove
-    // request.
-    if isOnSystemPath() {
+    // request. Only invoke the helper if the helper-managed path itself
+    // exists — `isOnSystemPath()` also matches brew's binary-stanza symlink
+    // in `$HOMEBREW_PREFIX/bin`, which we don't own and shouldn't trigger
+    // an SMAppService.daemon registration to clean up.
+    if FileManager.default.fileExists(atPath: systemLinkPath) {
       uninstallSystemSymlink()
     }
 
