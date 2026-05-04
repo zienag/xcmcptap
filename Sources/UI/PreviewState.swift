@@ -15,7 +15,8 @@ public extension AppFeature.State {
   /// have the real app installed.
   private static let previewPlistPath =
     "/Applications/XcodeMCPTapPreview.app/Contents/Library/LaunchAgents/alfred.xcmcptap.plist"
-  private static let previewClientPath = "/Users/preview/.local/bin/xcmcptap"
+  private static let previewClientPath =
+    "/Applications/XcodeMCPTapPreview.app/Contents/MacOS/xcmcptap"
 
   private static func withPreviewPaths(_ state: AppFeature.State) -> AppFeature.State {
     var state = state

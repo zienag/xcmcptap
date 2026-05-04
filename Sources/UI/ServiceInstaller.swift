@@ -31,7 +31,19 @@ public struct ServiceInstaller: Sendable {
     )
   }
 
-  public var clientLinkPath: String {
+  /// Absolute path to the proxy binary shipped inside the running .app
+  /// bundle. Used as a fallback in integration snippets when no PATH-resident
+  /// symlink (brew or `/usr/local/bin`) exists.
+  public var bundledClientPath: String {
+    Bundle.main.executableURL?
+      .deletingLastPathComponent()
+      .appendingPathComponent(identity.symlinkName).path ?? ""
+  }
+
+  /// Path to the legacy `~/.local/bin/<name>` symlink. We no longer create
+  /// this — brew's `binary` stanza owns the user's PATH — but `uninstall()`
+  /// still removes it for users upgrading from older versions that did.
+  private var legacyClientLinkPath: String {
     NSHomeDirectory() + "/.local/bin/" + identity.symlinkName
   }
 
@@ -81,7 +93,25 @@ public struct ServiceInstaller: Sendable {
   }
 
   public func isOnSystemPath() -> Bool {
-    (try? FileManager.default.attributesOfItem(atPath: systemLinkPath)) != nil
+    Self.isReachableViaPath(symlinkName: identity.symlinkName) { path in
+      (try? FileManager.default.attributesOfItem(atPath: path)) != nil
+    }
+  }
+
+  /// Pure helper: returns true if `symlinkName` resolves on a PATH directory
+  /// we know about. Checks brew's Apple-Silicon prefix first (`/opt/homebrew/bin`),
+  /// then the legacy `/usr/local/bin` (also brew's Intel prefix). The
+  /// `fileExists` predicate is injected so tests can pin behaviour without
+  /// touching the real filesystem.
+  public static func isReachableViaPath(
+    symlinkName: String,
+    fileExists: (String) -> Bool,
+  ) -> Bool {
+    let candidates = [
+      "/opt/homebrew/bin/\(symlinkName)",
+      "/usr/local/bin/\(symlinkName)",
+    ]
+    return candidates.contains(where: fileExists)
   }
 
   public func install() {
@@ -90,7 +120,7 @@ public struct ServiceInstaller: Sendable {
       return
     }
 
-    guard let executableURL = Bundle.main.executableURL else {
+    guard Bundle.main.executableURL != nil else {
       log.error("refusing to install: main bundle has no executable URL")
       return
     }
@@ -110,10 +140,6 @@ public struct ServiceInstaller: Sendable {
       return
     }
 
-    let clientPath = executableURL
-      .deletingLastPathComponent()
-      .appendingPathComponent(identity.symlinkName).path
-
     cleanUpLegacyAgent()
 
     do {
@@ -123,10 +149,6 @@ public struct ServiceInstaller: Sendable {
       return
     }
 
-    let linkDir = URL(fileURLWithPath: clientLinkPath).deletingLastPathComponent().path
-    try? FileManager.default.createDirectory(atPath: linkDir, withIntermediateDirectories: true)
-    try? FileManager.default.removeItem(atPath: clientLinkPath)
-    try? FileManager.default.createSymbolicLink(atPath: clientLinkPath, withDestinationPath: clientPath)
     log.notice("install complete")
   }
 
@@ -145,7 +167,10 @@ public struct ServiceInstaller: Sendable {
     }
 
     cleanUpLegacyAgent()
-    try? FileManager.default.removeItem(atPath: clientLinkPath)
+    // Legacy: older versions auto-created `~/.local/bin/<name>` on first
+    // launch. We don't create it anymore (brew's `binary` stanza owns PATH),
+    // but clean up any stale copy left behind by an earlier install.
+    try? FileManager.default.removeItem(atPath: legacyClientLinkPath)
     log.notice("uninstall complete")
   }
 

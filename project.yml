@@ -112,6 +112,8 @@ targets:
     dependencies:
       - package: XcodeMCPTapPackage
         product: XcodeMCPTapClient
+      - package: XcodeMCPTapPackage
+        product: XcodeMCPTapUI
     settings:
       base:
         PRODUCT_NAME: xcmcptap

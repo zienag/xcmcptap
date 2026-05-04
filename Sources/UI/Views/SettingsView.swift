@@ -115,8 +115,6 @@ public struct SettingsView: View {
     VStack(alignment: .leading, spacing: Spacing.s) {
       SectionLabel("Paths")
       Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: Spacing.m, verticalSpacing: Spacing.s) {
-        pathRow(label: "Client", path: store.clientPath)
-        Divider().gridCellUnsizedAxes(.horizontal)
         pathRow(label: "Launch agent", path: store.plistPath)
       }
       .padding(Spacing.m)

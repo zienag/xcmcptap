@@ -223,10 +223,10 @@ jobs:
           TAP_DIR="$RUNNER_TEMP/homebrew-tap"
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/zienag/homebrew-tap.git" "$TAP_DIR"
 
-          cat > "$TAP_DIR/Casks/xcmcptap.rb" <<EOF
+          cat > "$TAP_DIR/Casks/xcmcptap.rb" <<'EOF'
           cask "xcmcptap" do
-            version "${SHORT}"
-            sha256 "${SHA}"
+            version "__VERSION__"
+            sha256 "__SHA__"
 
             url "https://github.com/zienag/xcmcptap/releases/download/v#{version}/XcodeMCPTap-#{version}.dmg"
             name "Xcode MCP Tap"
@@ -236,6 +236,21 @@ jobs:
             depends_on macos: ">= :tahoe"
 
             app "Xcode MCP Tap.app"
+            binary "#{appdir}/Xcode MCP Tap.app/Contents/MacOS/xcmcptap"
+
+            # Register the launch agent right after the cask copies the .app,
+            # so the user doesn't have to open the UI to start the service.
+            postflight do
+              system_command "#{appdir}/Xcode MCP Tap.app/Contents/MacOS/xcmcptap",
+                             args: ["install"]
+            end
+
+            # Tear down the agent + any system symlink while the .app is still
+            # on disk (SMAppService.unregister needs the bundle present).
+            uninstall_preflight do
+              system_command "#{appdir}/Xcode MCP Tap.app/Contents/MacOS/xcmcptap",
+                             args: ["uninstall"]
+            end
 
             uninstall launchctl: "alfred.xcmcptap",
                       delete:    "/usr/local/bin/xcmcptap"
@@ -244,8 +259,31 @@ jobs:
               "~/Library/LaunchAgents/alfred.xcmcptap.plist",
               "~/.local/bin/xcmcptap",
             ]
+
+            caveats <<~CAVEATS
+              Xcode MCP Tap is now running. Wire up your MCP client of choice
+              with one of these commands (the `xcmcptap` binary is on your PATH
+              via this cask):
+
+                claude mcp add --transport stdio xcode -- xcmcptap
+                codex mcp add xcode -- xcmcptap
+                gemini mcp add xcode xcmcptap
+                code --add-mcp '{"name":"xcode","command":"xcmcptap"}'
+
+              Cursor / Windsurf — paste this into the editor's MCP config:
+
+                {"mcpServers":{"xcode":{"command":"xcmcptap"}}}
+
+              The first agent that connects will show Xcode's "Allow access to
+              tools" dialog once. After that, every other client on the system
+              shares the same approval.
+            CAVEATS
           end
           EOF
+          # Substitute version + sha after writing so the heredoc doesn't try
+          # to expand `#{...}` cask interpolations as shell variables.
+          sed -i '' "s/__VERSION__/${SHORT}/" "$TAP_DIR/Casks/xcmcptap.rb"
+          sed -i '' "s/__SHA__/${SHA}/" "$TAP_DIR/Casks/xcmcptap.rb"
 
           cd "$TAP_DIR"
           git config user.name  "github-actions[bot]"

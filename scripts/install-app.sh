@@ -10,15 +10,19 @@ rm -rf "$APP_PATH"
 cp -R "$APP_BUNDLE" "$APP_PATH"
 echo "Installed $APP_NAME to $INSTALL_DIR"
 
+# Register the LaunchAgent immediately — same flow brew's postflight uses.
+"$APP_PATH/Contents/MacOS/$SYMLINK_NAME" install
+
 open "$APP_PATH"
 
 cat <<EOF
 
-Click "Install service" in the app's Settings tab to register the LaunchAgent,
-then configure your MCP client (Claude Code, Codex, Cursor, VS Code, ...) to
-point at:
+Service registered. Point your MCP client (Claude Code, Codex, Cursor,
+VS Code, ...) at:
 
-  $CLIENT_LINK
+  $APP_PATH/Contents/MacOS/$SYMLINK_NAME
 
-The Integrations tab in Settings shows ready-to-copy snippets for each client.
+Or click "Install to /usr/local/bin" in Settings to expose a bare
+\`$SYMLINK_NAME\` command on PATH (one-time admin prompt). The Integrations
+tab has ready-to-copy snippets for every supported client.
 EOF

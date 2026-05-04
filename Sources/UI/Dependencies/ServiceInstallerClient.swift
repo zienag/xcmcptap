@@ -30,7 +30,7 @@ public extension ServiceInstallerClient {
       requiresApproval: { installer.requiresApproval() },
       openLoginItems: { installer.openLoginItems() },
       isOnSystemPath: { installer.isOnSystemPath() },
-      clientPath: { installer.clientLinkPath },
+      clientPath: { installer.bundledClientPath },
       systemPath: { installer.systemLinkPath },
       plistPath: { installer.plistPath },
     )
