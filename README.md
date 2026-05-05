@@ -38,6 +38,12 @@ The Settings pane contains copy-paste snippets for every supported
 client and a one-click button to put `xcmcptap` on `/usr/local/bin` for
 non-brew installs.
 
+## Why this one
+
+- Signed and notarized native macOS app with a UI to inspect status.
+- Uses XPC instead of an HTTP server — faster than localhost TCP, and no port is occupied.
+- Lightweight Swift daemon — no Node, no Electron, no embedded HTTP stack.
+
 ## Requirements
 
 macOS 26 (Tahoe) or newer. Xcode 26.3 or newer for the bundled
